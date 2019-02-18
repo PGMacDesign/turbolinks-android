@@ -13,6 +13,7 @@ import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -21,8 +22,6 @@ import android.webkit.WebViewClient;
 
 import java.util.Date;
 import java.util.HashMap;
-
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 /**
  * <p>The main concrete class to use Turbolinks 5 in your app.</p>
@@ -49,8 +48,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     String currentVisitIdentifier;
     TurbolinksAdapter turbolinksAdapter;
     TurbolinksView turbolinksView;
-    View progressView;
-    View progressIndicator;
+//    View progressView;
+//    View progressIndicator;
 
     static volatile TurbolinksSession defaultInstance;
 
@@ -215,7 +214,42 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     public static void setDebugLoggingEnabled(boolean enabled) {
         TurbolinksLog.setDebugLoggingEnabled(enabled);
     }
-
+    
+    /**
+     * Set a custom cookie String
+     * @param baseUrl
+     * @param cookieString
+     * @return
+     */
+    public boolean setCookie(String baseUrl, String cookieString){
+        if(baseUrl == null || cookieString == null){
+            return false;
+        }
+        if(baseUrl.isEmpty() || cookieString.isEmpty()){
+            return false;
+        }
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this.getWebView(), true);
+        } else {
+            CookieManager.getInstance().setAcceptCookie(true);
+        }
+        CookieManager.getInstance().setCookie(baseUrl, cookieString);
+        return true;
+    }
+    
+    /**
+     * Override the User agent String at a webview level as opposed to the header level
+     * @param newUserAgentString
+     */
+    public boolean adjustUserAgentString(String newUserAgentString){
+        try {
+            this.getWebView().getSettings().setUserAgentString(newUserAgentString);
+            return true;
+        } catch (Exception e){
+            return false;
+        }
+    }
+    
     // ---------------------------------------------------
     // Required chained methods
     // ---------------------------------------------------
@@ -264,13 +298,14 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      */
     public TurbolinksSession view(TurbolinksView turbolinksView) {
         this.turbolinksView = turbolinksView;
-        this.turbolinksView.getRefreshLayout().setCallback(this);
-        this.turbolinksView.getRefreshLayout().setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
-            @Override
-            public void onRefresh() {
-                visitLocationWithAction(location, ACTION_ADVANCE);
-            }
-        });
+//        this.turbolinksView.getRefreshLayout().setCallback(this);
+//        this.turbolinksView.getRefreshLayout().setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+//            @Override
+//            public void onRefresh() {
+//                visitLocationWithAction(location, ACTION_ADVANCE);
+//            }
+//        });
+        //Callback function on refresh == 'visitLocationWithAction(location, ACTION_ADVANCE);'
         this.webViewAttachedToNewParent = this.turbolinksView.attachWebView(webView, screenshotsEnabled, pullToRefreshEnabled);
 
         return this;
@@ -290,7 +325,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         validateRequiredParams();
 
         if (!turbolinksIsReady || webViewAttachedToNewParent) {
-            initProgressView();
+            //todo Would normally have a callback function here for progress bar
         }
 
         if (turbolinksIsReady) {
@@ -317,29 +352,6 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     // ---------------------------------------------------
     // Optional chained methods
     // ---------------------------------------------------
-
-    /**
-     * <p><b>Optional</b> This will override the default progress view/progress indicator that's provided
-     * out of the box. This allows you to customize how you want the progress view to look while
-     * pages are loading.</p>
-     *
-     * @param progressView           A custom progressView object.
-     * @param progressIndicatorResId The resource ID of a progressIndicator object inside the progressView.
-     * @param progressIndicatorDelay The delay, in milliseconds, before the progress indicator should be displayed
-     *                               inside the progress view (default is 500 ms).
-     * @return The TurbolinksSession to continue the chained calls.
-     */
-    public TurbolinksSession progressView(View progressView, int progressIndicatorResId, int progressIndicatorDelay) {
-        this.progressView = progressView;
-        this.progressIndicator = progressView.findViewById(progressIndicatorResId);
-        this.progressIndicatorDelay = progressIndicatorDelay;
-
-        if (this.progressIndicator == null) {
-            throw new IllegalArgumentException("A progress indicator view must be provided in your custom progressView.");
-        }
-
-        return this;
-    }
 
     /**
      * <p><b>Optional</b> By default Turbolinks will "advance" to the next page and scroll position
@@ -735,35 +747,6 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      */
     private String getRestorationIdentifierFromMap() {
         return restorationIdentifierMap.get(activity.toString());
-    }
-
-    /**
-     * <p>Shows the progress view, either a custom one provided or the default.</p>
-     *
-     * <p>A default progress view is inflated if {@link #progressView} isn't called.
-     * If already inflated, progress view is fully detached before being shown since it's reused.</p>
-     */
-    private void initProgressView() {
-        // No custom progress view provided, use default
-        if (progressView == null) {
-            progressView = LayoutInflater.from(activity).inflate(R.layout.turbolinks_progress, turbolinksView, false);
-
-            TurbolinksLog.d("TurbolinksSession background: " + turbolinksView.getBackground());
-            progressView.setBackground(turbolinksView.getBackground());
-            progressIndicator = progressView.findViewById(R.id.turbolinks_default_progress_indicator);
-            progressIndicatorDelay = PROGRESS_INDICATOR_DELAY;
-
-            Drawable background = turbolinksView.getBackground() != null ? turbolinksView.getBackground() : new ColorDrawable(activity.getResources().getColor(android.R.color.white));
-            progressView.setBackground(background);
-        }
-
-        // A progress view can be reused, so ensure it's detached from its previous parent first
-        if (progressView.getParent() != null) {
-            ((ViewGroup) progressView.getParent()).removeView(progressView);
-        }
-
-        // Executed from here to account for progress indicator delay
-        turbolinksView.showProgress(progressView, progressIndicator, progressIndicatorDelay);
     }
 
     /**

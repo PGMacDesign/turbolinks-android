@@ -1,9 +1,9 @@
 apply plugin: 'com.android.library'
 apply plugin: 'com.github.dcendents.android-maven'
-apply plugin: 'com.jfrog.bintray'
+group='com.github.PGMacDesign'
 
 buildscript {
-    ext.libVersionName = '1.0.9'
+    ext.libVersionName = '1.1.0'
 
     repositories {
         jcenter()
@@ -52,19 +52,16 @@ ext {
     bintrayRepo = 'maven'
     bintrayName = 'turbolinks-android'
 
-    publishedGroupId = 'com.basecamp'
-    artifact = 'turbolinks'
+    publishedGroupId = 'com.pgmacdesign'
+    artifact = 'modifiedturbolinks'
 
-    libraryName = 'Turbolinks Android'
-    libraryDescription = 'Turbolinks for Android'
+    libraryName = 'Modified Turbolinks Android'
+    libraryDescription = 'Modified Turbolinks for Android'
     libraryVersion = "$libVersionName"
 
-    siteUrl = 'https://github.com/basecamp/turbolinks-android'
-    gitUrl = 'https://github.com/basecamp/turbolinks-android.git'
+    siteUrl = 'https://github.com/PGMacDesign/turbolinks-android'
+    gitUrl = 'https://github.com/PGMacDesign/turbolinks-android.git'
 
-    developerId = 'basecamp'
-    developerName = 'Basecamp'
-    developerEmail = 'support@basecamp.com'
 }
 
 // Maven
@@ -83,14 +80,6 @@ install {
                 // Add your description here
                 name libraryName
                 description libraryDescription
-
-                developers {
-                    developer {
-                        id developerId
-                        name developerName
-                        email developerEmail
-                    }
-                }
             }
         }
     }
@@ -115,20 +104,3 @@ artifacts {
     archives sourcesJar
 }
 
-// Bintray
-bintray {
-    user = System.getenv('BINTRAY_USER')
-    key = System.getenv('BINTRAY_API_KEY')
-
-    configurations = ['archives']
-    pkg {
-        repo = bintrayRepo
-        name = bintrayName
-        desc = libraryDescription
-        publish = true
-        publicDownloadNumbers = true
-        version {
-            desc = libraryDescription
-        }
-    }
-}
