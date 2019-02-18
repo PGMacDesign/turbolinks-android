@@ -7,6 +7,8 @@ Thank you for supporting Turbolinks Android 1.0, and we’re excited to share 2.
 
 # Turbolinks Android
 
+[![JitPack](https://jitpack.io/v/pgmacdesign/turbolinks-android.svg)](https://jitpack.io/#pgmacdesign/turbolinks-android)
+
 Original Fork from [https://github.com/turbolinks/turbolinks-android](https://github.com/turbolinks/turbolinks-android) on 2019-02-18
 
 Turbolinks Android is a native adapter for any [Turbolinks 5](https://github.com/turbolinks/turbolinks#readme) enabled web app. It's built entirely using standard Android tools and conventions.
