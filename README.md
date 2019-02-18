@@ -6,7 +6,8 @@ Also, we are very early in the prototype stage for Turbolinks Android 2.0. We st
 Thank you for supporting Turbolinks Android 1.0, and we’re excited to share 2.0 when the time comes.
 
 # Turbolinks Android
-[![Build Status on Travis:](https://travis-ci.org/turbolinks/turbolinks-android.svg?branch=master)](https://travis-ci.org/turbolinks/turbolinks-android) [ ![Download](https://api.bintray.com/packages/basecamp/maven/turbolinks-android/images/download.svg) ](https://bintray.com/basecamp/maven/turbolinks-android/_latestVersion)
+
+Original Fork from [https://github.com/turbolinks/turbolinks-android](https://github.com/turbolinks/turbolinks-android) on 2019-02-18
 
 Turbolinks Android is a native adapter for any [Turbolinks 5](https://github.com/turbolinks/turbolinks#readme) enabled web app. It's built entirely using standard Android tools and conventions.
 
@@ -35,7 +36,7 @@ repositories {
 }
 
 dependencies {
-    compile 'com.basecamp:turbolinks:1.0.9'
+    compile 'com.pgmacdesign:modifiedturbolinks:1.1.0'
 }
 ```
 
