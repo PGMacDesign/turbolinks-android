@@ -36,7 +36,7 @@ repositories {
 }
 
 dependencies {
-    compile 'com.pgmacdesign:modifiedturbolinks:1.1.0'
+    compile 'com.pgmacdesign:turbolinks-android:1.1.0'
 }
 ```
 
