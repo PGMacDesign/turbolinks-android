@@ -3,6 +3,7 @@ package com.basecamp.turbolinks;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.MutableContextWrapper;
+import android.os.Build;
 import android.os.Handler;
 import android.util.Base64;
 import android.view.ViewGroup;
@@ -11,6 +12,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 import android.widget.FrameLayout;
+
+import com.basecamp.turbolinks.customui.ObservableWebView;
+import com.basecamp.turbolinks.customui.ScrollableWebView;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -34,12 +38,11 @@ class TurbolinksHelper {
      * @param applicationContext An application context.
      * @return The shared WebView.
      */
-    static WebView createWebView(Context applicationContext) {
+    static ScrollableWebView createWebView(Context applicationContext) {
         MutableContextWrapper contextWrapper = new MutableContextWrapper(applicationContext);
-        WebView webView = new WebView(contextWrapper);
-        configureWebViewDefaults(webView);
-        setWebViewLayoutParams(webView);
-
+        ScrollableWebView webView = new ScrollableWebView(contextWrapper);
+        TurbolinksHelper.configureWebViewDefaults(webView);
+        TurbolinksHelper.setWebViewLayoutParams(webView);
         return webView;
     }
 
@@ -177,7 +180,8 @@ class TurbolinksHelper {
      * @param webView The shared webView.
      */
     private static void setWebViewLayoutParams(WebView webView) {
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         webView.setLayoutParams(params);
     }
 }

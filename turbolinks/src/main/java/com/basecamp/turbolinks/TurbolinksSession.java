@@ -10,6 +10,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,13 +21,17 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import com.basecamp.turbolinks.customui.OnScrollChangedCallback;
+import com.basecamp.turbolinks.customui.ScrollableWebView;
+import com.basecamp.turbolinks.customui.SwipeRefreshEnabledListener;
+
 import java.util.Date;
 import java.util.HashMap;
 
 /**
  * <p>The main concrete class to use Turbolinks 5 in your app.</p>
  */
-public class TurbolinksSession implements TurbolinksScrollUpCallback {
+public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollChangedCallback {
 
     // ---------------------------------------------------
     // Package public vars (allows for greater flexibility and access for testing)
@@ -39,7 +44,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     boolean screenshotsEnabled;
     boolean pullToRefreshEnabled;
     boolean webViewAttachedToNewParent;
-    int progressIndicatorDelay;
+    int xPosition, yPosition;
     long previousOverrideTime;
     Activity activity;
     HashMap<String, Object> javascriptInterfaces = new HashMap<>();
@@ -48,6 +53,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     String currentVisitIdentifier;
     TurbolinksAdapter turbolinksAdapter;
     TurbolinksView turbolinksView;
+    SwipeRefreshEnabledListener swipeRefreshEnabledListener;
 //    View progressView;
 //    View progressIndicator;
 
@@ -64,7 +70,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     static final int PROGRESS_INDICATOR_DELAY = 500;
 
     final Context applicationContext;
-    final WebView webView;
+    final ScrollableWebView webView;
 
     // ---------------------------------------------------
     // Constructor
@@ -79,7 +85,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         if (context == null) {
             throw new IllegalArgumentException("Context must not be null.");
         }
-
+        this.pullToRefreshEnabled = false;
         this.applicationContext = context.getApplicationContext();
         this.screenshotsEnabled = true;
         this.pullToRefreshEnabled = true;
@@ -87,6 +93,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 
         this.webView = TurbolinksHelper.createWebView(applicationContext);
         this.webView.addJavascriptInterface(this, JAVASCRIPT_INTERFACE_NAME);
+        this.webView.setOnScrollChangedCallback(this);
         this.webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -215,6 +222,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         TurbolinksLog.setDebugLoggingEnabled(enabled);
     }
     
+    //region Custom Setters
+    
     /**
      * Set a custom cookie String
      * @param baseUrl
@@ -249,6 +258,16 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
             return false;
         }
     }
+    
+    /**
+     * Set the {@link SwipeRefreshEnabledListener} for callbacks
+     * @param swipeRefreshEnabledListener
+     */
+    public void setSwipeRefreshEnabledListener(SwipeRefreshEnabledListener swipeRefreshEnabledListener){
+        this.swipeRefreshEnabledListener = swipeRefreshEnabledListener;
+    }
+    
+    //endregion
     
     // ---------------------------------------------------
     // Required chained methods
@@ -696,16 +715,6 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     }
 
     /**
-     * <p>Determines whether WebViews can be refreshed by pulling/swiping from the top
-     * of the WebView. Default is true.</p>
-     *
-     * @param enabled If true pulling to refresh the WebView is enabled
-     */
-    public void setPullToRefreshEnabled(boolean enabled) {
-        pullToRefreshEnabled = enabled;
-    }
-
-    /**
      * <p>Provides the status of whether Turbolinks is initialized and ready for use.</p>
      *
      * @return True if Turbolinks has been fully loaded and detected on the page.
@@ -783,6 +792,17 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         }
     }
 
+    //region Getters
+    public int getWebviewXPosition(){
+        return this.xPosition;
+    }
+    
+    public int getWebviewYPosition(){
+        return this.yPosition;
+    }
+    
+    //endregion
+    
     // ---------------------------------------------------
     // Interfaces
     // ---------------------------------------------------
@@ -794,6 +814,21 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      */
     @Override
     public boolean canChildScrollUp() {
-        return this.webView.getScrollY() > 0;
+        return this.yPosition > 0;
+//        return this.webView.getScrollY() > 0;
+    }
+    
+    @Override
+    public void onScroll(int xPosition, int yPosition, int oldXPosition, int oldYPosition) {
+        this.yPosition = yPosition;
+        this.xPosition = xPosition;
+        if(this.swipeRefreshEnabledListener != null) {
+            this.swipeRefreshEnabledListener.shouldEnableSwipeRefresh(this.yPosition <= 0);
+        }
+    }
+    
+    @Override
+    public void onScroll(WebView v, int xPosition, int yPosition, int oldXPosition, int oldYPosition) {
+        //Will not trigger, minimum SDK <23
     }
 }
