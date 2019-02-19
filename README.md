@@ -38,7 +38,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.pgmacdesign:turbolinks-android:1.1.0'
+    implementation 'com.github.pgmacdesign:turbolinks-android:1.1.1'
 }
 ```
 
@@ -85,6 +85,10 @@ Beyond this `README`, you can get a good feel for the callbacks from the [Javado
 From your activity that implements the `TurbolinksAdapter` interface, here's how you tell Turbolinks to visit a location:
 
 ```java
+
+//Your session
+private TurbolinksSession session;
+
 @Override
 protected void onCreate(Bundle savedInstanceState) {
     // Standard activity boilerplate here...
@@ -93,11 +97,27 @@ protected void onCreate(Bundle savedInstanceState) {
     // layout in step 1.
     turbolinksView = (TurbolinksView) findViewById(R.id.turbolinks_view);
 
-    TurbolinksSession.getDefault(this)
+    this.session = TurbolinksSession.getDefault(this)
                      .activity(this)
                      .adapter(this)
-                     .view(turbolinksView)
-                     .visit("https://basecamp.com");
+                     .view(turbolinksView);
+    
+    //Optional, but recommended if nested within a Swipe Refresh View
+    this.turbolinksSession.setSwipeRefreshEnabledListener(new SwipeRefreshEnabledListener() {
+        @Override
+        public void shouldEnableSwipeRefresh(boolean b) {
+            mySwipeRefreshView.setEnabled(b);
+        }
+    });
+    
+    //Optional, set cookies or a custom user-agent String
+    this.turbolinksSession.setCookie(myCookieUrl, myCookieString);
+    this.turbolinksSession.adjustUserAgentString(myNewUserAgentString);
+    
+    //Load a page
+    this.turbolinksSession.visit("https://basecamp.com");
+    
+    
 }
 ```
 
