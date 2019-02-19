@@ -87,7 +87,7 @@ From your activity that implements the `TurbolinksAdapter` interface, here's how
 ```java
 
 //Your session
-private TurbolinksSession session;
+private TurbolinksSession turbolinksSession;
 
 @Override
 protected void onCreate(Bundle savedInstanceState) {
@@ -97,7 +97,7 @@ protected void onCreate(Bundle savedInstanceState) {
     // layout in step 1.
     turbolinksView = (TurbolinksView) findViewById(R.id.turbolinks_view);
 
-    this.session = TurbolinksSession.getDefault(this)
+    this.turbolinksSession = TurbolinksSession.getDefault(this)
                      .activity(this)
                      .adapter(this)
                      .view(turbolinksView);
