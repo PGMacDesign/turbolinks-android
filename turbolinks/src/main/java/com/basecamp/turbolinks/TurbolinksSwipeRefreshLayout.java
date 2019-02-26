@@ -10,7 +10,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
  */
 class TurbolinksSwipeRefreshLayout extends SwipeRefreshLayout {
     private TurbolinksScrollUpCallback callback;
-
+    
     /**
      * <p>Constructor to match SwipeRefreshLayout</p>
      *
@@ -19,7 +19,7 @@ class TurbolinksSwipeRefreshLayout extends SwipeRefreshLayout {
     TurbolinksSwipeRefreshLayout(Context context) {
         super(context);
     }
-
+    
     /**
      * <p>Constructor to match SwipeRefreshLayout</p>
      *
@@ -29,7 +29,7 @@ class TurbolinksSwipeRefreshLayout extends SwipeRefreshLayout {
     TurbolinksSwipeRefreshLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
     }
-
+    
     /**
      * <p>Overridden from SwipeRefreshLayout. Uses a custom callback.</p>
      * <p>If the custom callback is null, it falls back to the parent canChildScrollUp()</p>
@@ -38,10 +38,12 @@ class TurbolinksSwipeRefreshLayout extends SwipeRefreshLayout {
      */
     @Override
     public boolean canChildScrollUp() {
-        if (callback != null) { return callback.canChildScrollUp(); }
+        if (callback != null) {
+            return callback.canChildScrollUp();
+        }
         return super.canChildScrollUp();
     }
-
+    
     /**
      * <p>Sets the callback to be used in canChildScrollUp().</p>
      * <p>See canChildScrollUp() to see how it's used.</p>

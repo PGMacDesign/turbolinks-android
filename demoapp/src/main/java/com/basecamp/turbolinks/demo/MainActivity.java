@@ -2,6 +2,7 @@ package com.basecamp.turbolinks.demo;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 
 import com.basecamp.turbolinks.TurbolinksAdapter;
 import com.basecamp.turbolinks.TurbolinksSession;
@@ -11,7 +12,11 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity implements TurbolinksAdapter {
     // Change the BASE_URL to an address that your VM or device can hit.
-    private static final String BASE_URL = "http://10.0.1.100:9292";
+//    private static final String BASE_URL = "http://10.0.1.100:9292";
+    //For Testing a long scrollview page
+//    private static final String BASE_URL = "https://stackoverflow.com/questions/27515236/how-to-determine-the-content-size-of-a-wkwebview";
+    //For testing page made with Turbolinks
+    private static final String BASE_URL = "https://cookpad.com/us";
     private static final String INTENT_URL = "intentUrl";
 
     private String location;
@@ -66,7 +71,17 @@ public class MainActivity extends AppCompatActivity implements TurbolinksAdapter
     public void onPageFinished() {
 
     }
-
+    
+    @Override
+    public void onPageDoesntSupportTurbolinks() {
+    
+    }
+    
+    @Override
+    public void reloadPageViaRefreshTriggered() {
+    
+    }
+    
     @Override
     public void onReceivedError(int errorCode) {
         handleError(errorCode);
@@ -92,6 +107,7 @@ public class MainActivity extends AppCompatActivity implements TurbolinksAdapter
     // routing logic to take you to the right place within your app.
     @Override
     public void visitProposedToLocationWithAction(String location, String action) {
+        Log.d("Turbolinks Lib", "Within MainActivity, visitProposedToLocationWithAction. loc == " + location + ", action == " + action);
         Intent intent = new Intent(this, MainActivity.class);
         intent.putExtra(INTENT_URL, location);
 

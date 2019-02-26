@@ -13,8 +13,6 @@ import android.webkit.WebView;
 
 import android.widget.FrameLayout;
 
-import com.basecamp.turbolinks.customui.ObservableWebView;
-import com.basecamp.turbolinks.customui.ScrollableWebView;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -38,9 +36,9 @@ class TurbolinksHelper {
      * @param applicationContext An application context.
      * @return The shared WebView.
      */
-    static ScrollableWebView createWebView(Context applicationContext) {
+    static WebView createWebView(Context applicationContext) {
         MutableContextWrapper contextWrapper = new MutableContextWrapper(applicationContext);
-        ScrollableWebView webView = new ScrollableWebView(contextWrapper);
+        WebView webView = new WebView(contextWrapper);
         TurbolinksHelper.configureWebViewDefaults(webView);
         TurbolinksHelper.setWebViewLayoutParams(webView);
         return webView;

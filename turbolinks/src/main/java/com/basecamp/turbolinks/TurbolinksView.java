@@ -14,6 +14,8 @@ import android.webkit.WebView;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
 /* The internal view hierarchy uses the following structure:
  *
  * TurbolinksView
@@ -26,16 +28,16 @@ import android.widget.ImageView;
 /**
  * <p>The custom view to add to your activity layout.</p>
  */
-public class TurbolinksView extends FrameLayout {
+public class TurbolinksView extends FrameLayout  {
     private TurbolinksSwipeRefreshLayout refreshLayout = null;
     private View progressView = null;
     private ImageView screenshotView = null;
     private int screenshotOrientation = 0;
-
+    
     // ---------------------------------------------------
     // Constructors
     // ---------------------------------------------------
-
+    
     /**
      * <p>Constructor to match FrameLayout.</p>
      *
@@ -45,7 +47,7 @@ public class TurbolinksView extends FrameLayout {
         super(context);
         init();
     }
-
+    
     /**
      * <p>Constructor to match FrameLayout.</p>
      *
@@ -56,7 +58,7 @@ public class TurbolinksView extends FrameLayout {
         super(context, attrs);
         init();
     }
-
+    
     /**
      * <p>Constructor to match FrameLayout.</p>
      *
@@ -68,7 +70,7 @@ public class TurbolinksView extends FrameLayout {
         super(context, attrs, defStyleAttr);
         init();
     }
-
+    
     /**
      * <p>Constructor to match FrameLayout.</p>
      *
@@ -82,19 +84,19 @@ public class TurbolinksView extends FrameLayout {
         super(context, attrs, defStyleAttr, defStyleRes);
         init();
     }
-
+    
     /**
      * <p>Initializes the view in a common places from all constructors.</p>
      */
     private void init() {
-        refreshLayout = new TurbolinksSwipeRefreshLayout(getContext(), null);
+        this.refreshLayout = new TurbolinksSwipeRefreshLayout(getContext(), null);
         addView(refreshLayout, 0);
     }
-
+    
     // ---------------------------------------------------
     // Package public
     // ---------------------------------------------------
-
+    
     /**
      * <p>Shows a progress view or a generated screenshot of the webview content (if available)
      * on top of the webview. When advancing to a new url, this indicates that the page is still
@@ -110,18 +112,18 @@ public class TurbolinksView extends FrameLayout {
      */
     void showProgress(final View progressView, final View progressIndicator, int delay) {
         TurbolinksLog.d("showProgress called");
-
+        
         // Don't show the progress view if a screenshot is available
         if (screenshotView != null && screenshotOrientation == getOrientation()) return;
-
+        
         hideProgress();
-
+        
         this.progressView = progressView;
         progressView.setClickable(true);
         addView(progressView);
-
+        
         progressIndicator.setVisibility(View.GONE);
-
+        
         final Handler handler = new Handler();
         handler.postDelayed(new Runnable() {
             @Override
@@ -130,7 +132,7 @@ public class TurbolinksView extends FrameLayout {
             }
         }, delay);
     }
-
+    
     /**
      * <p>Removes the progress view and/or screenshot from the TurbolinksView, so the webview is
      * visible underneath.</p>
@@ -138,8 +140,13 @@ public class TurbolinksView extends FrameLayout {
     void hideProgress() {
         removeProgressView();
         removeScreenshotView();
+        try {
+            this.refreshLayout.setRefreshing(false);
+        } catch (Exception e){
+            TurbolinksLog.d("Error setting refreshLayout.setRefreshing(false) - " + e.getMessage());
+        }
     }
-
+    
     /**
      * <p>Attach the swipeRefreshLayout, which contains the shared webView, to the TurbolinksView.</p>
      *
@@ -149,16 +156,21 @@ public class TurbolinksView extends FrameLayout {
      * @return True if the webView has been attached to a new parent, otherwise false
      */
     boolean attachWebView(WebView webView, boolean screenshotsEnabled, boolean pullToRefreshEnabled) {
-        if (webView.getParent() == refreshLayout) return false;
-
+        if(this.refreshLayout == null) {
+            return false;
+        }
+        if(webView.getParent() == refreshLayout){
+            return false;
+        }
+        
         refreshLayout.setEnabled(pullToRefreshEnabled);
-
+        
         if (webView.getParent() instanceof TurbolinksSwipeRefreshLayout) {
             TurbolinksSwipeRefreshLayout previousRefreshLayout = (TurbolinksSwipeRefreshLayout) webView.getParent();
             TurbolinksView previousTurbolinksView = (TurbolinksView) previousRefreshLayout.getParent();
-
+            
             if (screenshotsEnabled) previousTurbolinksView.screenshotView();
-
+            
             try {
                 // This is an admittedly hacky workaround, but it buys us some time as we investigate
                 // a potential bug with Chrome 64, which is currently throwing an IllegalStateException
@@ -170,16 +182,16 @@ public class TurbolinksView extends FrameLayout {
                 previousRefreshLayout.removeView(webView);
             }
         }
-
+        
         // Set the webview background to match the container background
         if (getBackground() instanceof ColorDrawable) {
             webView.setBackgroundColor(((ColorDrawable) getBackground()).getColor());
         }
-
+        
         refreshLayout.addView(webView);
         return true;
     }
-
+    
     /**
      * <p>Gets the refresh layout used internally for pull-to-refresh functionality.</p>
      *
@@ -188,49 +200,49 @@ public class TurbolinksView extends FrameLayout {
     TurbolinksSwipeRefreshLayout getRefreshLayout() {
         return refreshLayout;
     }
-
+    
     /**
      * Removes the progress view as a child of TurbolinksView
      */
     private void removeProgressView() {
         if (progressView == null) return;
-
+        
         removeView(progressView);
         TurbolinksLog.d("Progress view removed");
     }
-
+    
     /**
      * Removes the screenshot view as a child of TurbolinksView
      */
     private void removeScreenshotView() {
         if (screenshotView == null) return;
-
+        
         removeView(screenshotView);
         screenshotView = null;
         TurbolinksLog.d("Screenshot removed");
     }
-
+    
     /**
      * <p>Creates a screenshot of the current webview content and makes it the top visible view.</p>
      */
     private void screenshotView() {
         // Only take a screenshot if the activity is not finishing
         if (getContext() instanceof Activity && ((Activity) getContext()).isFinishing()) return;
-
+        
         Bitmap screenshot = getScreenshotBitmap();
         if (screenshot == null) return;
-
+        
         screenshotView = new ImageView(getContext());
         screenshotView.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         screenshotView.setClickable(true);
         screenshotView.setImageBitmap(screenshot);
         screenshotOrientation = getOrientation();
-
+        
         addView(screenshotView);
-
+        
         TurbolinksLog.d("Screenshot taken");
     }
-
+    
     /**
      * <p>Creates a bitmap screenshot of the webview contents from the canvas.</p>
      *
@@ -238,14 +250,14 @@ public class TurbolinksView extends FrameLayout {
      */
     private Bitmap getScreenshotBitmap() {
         if (!hasEnoughHeapMemoryForScreenshot()) return null;
-
+        
         if (getWidth() <= 0 || getHeight() <= 0) return null;
-
+        
         Bitmap bitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
         draw(new Canvas(bitmap));
         return bitmap;
     }
-
+    
     /**
      * Gets the current orientation of the device.
      *
@@ -254,7 +266,7 @@ public class TurbolinksView extends FrameLayout {
     private int getOrientation() {
         return getContext().getResources().getConfiguration().orientation;
     }
-
+    
     /**
      * Determines if the app's memory heap has enough space to create a bitmapped screenshot without
      * running into an OOM.
@@ -263,14 +275,15 @@ public class TurbolinksView extends FrameLayout {
      */
     private boolean hasEnoughHeapMemoryForScreenshot() {
         final Runtime runtime = Runtime.getRuntime();
-
+        
         // Auto casting to floats necessary for division
         float free = runtime.freeMemory();
         float total = runtime.totalMemory();
         float remaining = free / total;
-
+        
         TurbolinksLog.d("Memory remaining percentage: " + remaining);
-
+        
         return remaining > .10;
     }
+  
 }

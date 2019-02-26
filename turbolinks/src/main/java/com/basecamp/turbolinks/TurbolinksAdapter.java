@@ -8,6 +8,18 @@ package com.basecamp.turbolinks;
  * where you can do things like routing, inject custom Javascript, etc.</p>
  */
 public interface TurbolinksAdapter {
+    
+    /**
+     * Called whenever the page is reloaded via a pull to refresh
+     */
+    void reloadPageViaRefreshTriggered();
+    
+    /**
+     * Called when the page loaded does not support turbolinks and there is
+     * an issue instantiating turbolinks_bridge.js
+     */
+    void onPageDoesntSupportTurbolinks();
+    
     /**
      * <p>Called after the Turbolinks Javascript bridge has been injected into the webView, during the
      * Android WebViewClient's standard onPageFinished callback.
