@@ -6,14 +6,10 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.MutableContextWrapper;
 import android.graphics.Bitmap;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebResourceRequest;
@@ -21,18 +17,20 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import com.basecamp.turbolinks.customui.OnScrollChangedCallback;
-import com.basecamp.turbolinks.customui.ScrollableWebView;
-import com.basecamp.turbolinks.customui.SwipeRefreshEnabledListener;
-
 import java.util.Date;
 import java.util.HashMap;
+
+import androidx.annotation.NonNull;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 /**
  * <p>The main concrete class to use Turbolinks 5 in your app.</p>
  */
-public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollChangedCallback {
+public class TurbolinksSession implements TurbolinksScrollUpCallback {
 
+    private static final String JAVASCRIPT_GET_WEB_PAGE_HEIGHT =
+            "document.body.scrollHeight";
+    
     // ---------------------------------------------------
     // Package public vars (allows for greater flexibility and access for testing)
     // ---------------------------------------------------
@@ -44,7 +42,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
     boolean screenshotsEnabled;
     boolean pullToRefreshEnabled;
     boolean webViewAttachedToNewParent;
-    int xPosition, yPosition;
+    boolean isAtTop;
+    int xPosition, yPosition, heightOfPage;
     long previousOverrideTime;
     Activity activity;
     HashMap<String, Object> javascriptInterfaces = new HashMap<>();
@@ -53,7 +52,6 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
     String currentVisitIdentifier;
     TurbolinksAdapter turbolinksAdapter;
     TurbolinksView turbolinksView;
-    SwipeRefreshEnabledListener swipeRefreshEnabledListener;
 //    View progressView;
 //    View progressIndicator;
 
@@ -66,11 +64,12 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
     static final String ACTION_ADVANCE = "advance";
     static final String ACTION_RESTORE = "restore";
     static final String ACTION_REPLACE = "replace";
+    static final String ACTION_RELOAD = "reload";
     static final String JAVASCRIPT_INTERFACE_NAME = "TurbolinksNative";
     static final int PROGRESS_INDICATOR_DELAY = 500;
 
     final Context applicationContext;
-    final ScrollableWebView webView;
+    WebView webView; //Removed final prefix on 20192-27
 
     // ---------------------------------------------------
     // Constructor
@@ -81,98 +80,29 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
      *
      * @param context Any Android context.
      */
-    private TurbolinksSession(final Context context) {
+    private TurbolinksSession(@NonNull final Context context) {
         if (context == null) {
             throw new IllegalArgumentException("Context must not be null.");
         }
-        this.pullToRefreshEnabled = false;
+        this.isAtTop = false;
+        this.pullToRefreshEnabled = true;
         this.applicationContext = context.getApplicationContext();
         this.screenshotsEnabled = true;
-        this.pullToRefreshEnabled = true;
+//        this.pullToRefreshEnabled = false;
         this.webViewAttachedToNewParent = false;
 
+        
         this.webView = TurbolinksHelper.createWebView(applicationContext);
         this.webView.addJavascriptInterface(this, JAVASCRIPT_INTERFACE_NAME);
-        this.webView.setOnScrollChangedCallback(this);
-        this.webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                coldBootInProgress = true;
-            }
-
-            @Override
-            public void onPageFinished(WebView view, final String location) {
-                String jsCall = "window.webView == null";
-                webView.evaluateJavascript(jsCall, new ValueCallback<String>() {
-                    @Override
-                    public void onReceiveValue(String s) {
-                        if (Boolean.parseBoolean(s) && !bridgeInjectionInProgress) {
-                            bridgeInjectionInProgress = true;
-                            TurbolinksHelper.injectTurbolinksBridge(TurbolinksSession.this, applicationContext, webView);
-                            TurbolinksLog.d("Bridge injected");
-
-                            turbolinksAdapter.onPageFinished();
-                        }
-                    }
-                });
-            }
-
-            /**
-             * Turbolinks will not call adapter.visitProposedToLocationWithAction in some cases,
-             * like target=_blank or when the domain doesn't match. We still route those here.
-             * This is mainly only called when links within a webView are clicked and not during
-             * loadUrl. However, a redirect on a cold boot can also cause this to fire, so don't
-             * override in that situation, since Turbolinks is not yet ready.
-             * http://stackoverflow.com/a/6739042/3280911
-             */
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String location) {
-                if (!turbolinksIsReady || coldBootInProgress) {
-                    return false;
-                }
-
-                /**
-                 * Prevents firing twice in a row within a few milliseconds of each other, which
-                 * happens. So we check for a slight delay between requests, which is plenty of time
-                 * to allow for a user to click the same link again.
-                 */
-                long currentOverrideTime = new Date().getTime();
-                if ((currentOverrideTime - previousOverrideTime) > 500) {
-                    previousOverrideTime = currentOverrideTime;
-                    TurbolinksLog.d("Overriding load: " + location);
-                    visitProposedToLocationWithAction(location, ACTION_ADVANCE);
-                }
-
-                return true;
-            }
-
-            @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                super.onReceivedError(view, errorCode, description, failingUrl);
-                resetToColdBoot();
-
-                turbolinksAdapter.onReceivedError(errorCode);
-                TurbolinksLog.d("onReceivedError: " + errorCode);
-            }
-
-            @Override
-            @TargetApi(Build.VERSION_CODES.M)
-            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
-                super.onReceivedHttpError(view, request, errorResponse);
-
-                if (request.isForMainFrame()) {
-                    resetToColdBoot();
-                    turbolinksAdapter.onReceivedError(errorResponse.getStatusCode());
-                    TurbolinksLog.d("onReceivedHttpError: " + errorResponse.getStatusCode());
-                }
-            }
-        });
+        this.webView.setWebViewClient(new MyWebViewClient());
+        this.setWebviewScrollListener();
     }
 
     // ---------------------------------------------------
     // Initialization
     // ---------------------------------------------------
 
+    
     /**
      * Creates a brand new TurbolinksSession that the calling application will be responsible for
      * managing.
@@ -250,21 +180,26 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
      * Override the User agent String at a webview level as opposed to the header level
      * @param newUserAgentString
      */
-    public boolean adjustUserAgentString(String newUserAgentString){
+    public boolean replaceUserAgentString(String newUserAgentString){
+        return this.adjustUserAgentString(newUserAgentString, false);
+    }
+    
+    /**
+     * replace the User agent String at a webview level as opposed to the header level
+     * @param newUserAgentString
+     * @param appendToExisting boolean, if false, it will replace the user agent string entirely,
+     *                         if true, it will append it to the existing one
+     */
+    public boolean adjustUserAgentString(String newUserAgentString, boolean appendToExisting){
         try {
-            this.getWebView().getSettings().setUserAgentString(newUserAgentString);
+            String userAgent = (appendToExisting)
+                    ? (this.getWebView().getSettings().getUserAgentString() + newUserAgentString)
+                    : newUserAgentString;
+            this.getWebView().getSettings().setUserAgentString(userAgent);
             return true;
         } catch (Exception e){
             return false;
         }
-    }
-    
-    /**
-     * Set the {@link SwipeRefreshEnabledListener} for callbacks
-     * @param swipeRefreshEnabledListener
-     */
-    public void setSwipeRefreshEnabledListener(SwipeRefreshEnabledListener swipeRefreshEnabledListener){
-        this.swipeRefreshEnabledListener = swipeRefreshEnabledListener;
     }
     
     //endregion
@@ -317,13 +252,15 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
      */
     public TurbolinksSession view(TurbolinksView turbolinksView) {
         this.turbolinksView = turbolinksView;
-//        this.turbolinksView.getRefreshLayout().setCallback(this);
-//        this.turbolinksView.getRefreshLayout().setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
-//            @Override
-//            public void onRefresh() {
+        this.turbolinksView.getRefreshLayout().setCallback(this);
+        this.turbolinksView.getRefreshLayout().setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                turbolinksAdapter.reloadPageViaRefreshTriggered();
 //                visitLocationWithAction(location, ACTION_ADVANCE);
-//            }
-//        });
+                visitLocationWithAction(location, ACTION_REPLACE);
+            }
+        });
         //Callback function on refresh == 'visitLocationWithAction(location, ACTION_ADVANCE);'
         this.webViewAttachedToNewParent = this.turbolinksView.attachWebView(webView, screenshotsEnabled, pullToRefreshEnabled);
 
@@ -367,7 +304,26 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
         we open that last location.
         */
     }
-
+    
+    /**
+     * Public accessor to stop the refresh layout indicator
+     */
+    public void stopRefreshingManual(){
+        this.stopRefreshing();
+    }
+    
+    
+    /**
+     * Manual setter for refreshing
+     * {@link androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener} manually
+     * @param isRefreshing
+     */
+    public void setRefreshingManual(boolean isRefreshing){
+        try {
+            this.turbolinksView.getRefreshLayout().setRefreshing(isRefreshing);
+        } catch (Exception e){}
+    }
+    
     // ---------------------------------------------------
     // Optional chained methods
     // ---------------------------------------------------
@@ -404,13 +360,16 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
     @android.webkit.JavascriptInterface
     public void visitProposedToLocationWithAction(final String location, final String action) {
         TurbolinksLog.d("visitProposedToLocationWithAction called");
-
-        TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
-            @Override
-            public void run() {
-                turbolinksAdapter.visitProposedToLocationWithAction(location, action);
-            }
-        });
+        try {
+            TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
+                @Override
+                public void run() {
+                    turbolinksAdapter.visitProposedToLocationWithAction(location, action);
+                }
+            });
+        } catch (Exception e){
+            TurbolinksLog.d("Exception within visitProposedToLocationWithAction: " + e.getMessage());
+        }
     }
 
     /**
@@ -517,12 +476,13 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
                 @Override
                 public void run() {
                     turbolinksAdapter.visitCompleted();
-                    turbolinksView.getRefreshLayout().setRefreshing(false);
+                    stopRefreshing();
                 }
             });
         }
     }
-
+   
+    
     /**
      * <p><b>JavascriptInterface only</b> Called when Turbolinks detects that the page being visited
      * has been invalidated, typically by new resources in the the page HEAD.</p>
@@ -573,6 +533,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
                 if (turbolinksIsReady && TextUtils.equals(visitIdentifier, currentVisitIdentifier)) {
                     TurbolinksLog.d("Hiding progress view for visitIdentifier: " + visitIdentifier + ", currentVisitIdentifier: " + currentVisitIdentifier);
                     turbolinksView.hideProgress();
+                } else {
+                    stopRefreshing();
                 }
             }
         });
@@ -592,9 +554,9 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
     @android.webkit.JavascriptInterface
     public void setTurbolinksIsReady(boolean turbolinksIsReady) {
         this.turbolinksIsReady = turbolinksIsReady;
-
         if (turbolinksIsReady) {
-            bridgeInjectionInProgress = false;
+            this.turbolinksAdapter.onPageSupportsTurbolinks(true);
+            this.bridgeInjectionInProgress = false;
 
             TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
                 @Override
@@ -603,8 +565,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
                     visitCurrentLocationWithTurbolinks();
                 }
             });
-
-            coldBootInProgress = false;
+    
+            this.coldBootInProgress = false;
         } else {
             TurbolinksLog.d("TurbolinksSession is not ready. Resetting and throw error.");
             resetToColdBoot();
@@ -622,6 +584,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void turbolinksDoesNotExist() {
+        TurbolinksLog.d("turbolinksDoesNotExist on this page, going to cold boot");
+        turbolinksAdapter.onPageSupportsTurbolinks(false);
         TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
             @Override
             public void run() {
@@ -635,7 +599,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
     // -----------------------------------------------------------------------
     // Public
     // -----------------------------------------------------------------------
-
+    
     /**
      * <p>Provides the ability to add an arbitrary number of custom Javascript Interfaces to the built-in
      * Turbolinks webView.</p>
@@ -713,7 +677,17 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
     public void setScreenshotsEnabled(boolean enabled) {
         screenshotsEnabled = enabled;
     }
-
+    
+    /**
+     * <p>Determines whether WebViews can be refreshed by pulling/swiping from the top
+     * of the WebView. Default is true.</p>
+     *
+     * @param enabled If true pulling to refresh the WebView is enabled
+     */
+    public void setPullToRefreshEnabled(boolean enabled) {
+        pullToRefreshEnabled = enabled;
+    }
+    
     /**
      * <p>Provides the status of whether Turbolinks is initialized and ready for use.</p>
      *
@@ -730,8 +704,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
      * @param action   Whether to treat the request as an advance (navigating forward) or a replace (back).
      */
     public void visitLocationWithAction(String location, String action) {
+        TurbolinksLog.d("call to visitLocationWithAction: loc = " + location + ", action = " + action);
         this.location = location;
-        runJavascript("webView.visitLocationWithActionAndRestorationIdentifier", TurbolinksHelper.encodeUrl(location), action, getRestorationIdentifierFromMap());
+        runJavascript("webView.visitLocationWithActionAndRestorationIdentifier",
+                TurbolinksHelper.encodeUrl(location), action, getRestorationIdentifierFromMap());
     }
 
     // ---------------------------------------------------
@@ -801,6 +777,9 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
         return this.yPosition;
     }
     
+    public int getWebviewPageHeight(){
+        return this.heightOfPage;
+    }
     //endregion
     
     // ---------------------------------------------------
@@ -814,21 +793,157 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback, OnScrollCh
      */
     @Override
     public boolean canChildScrollUp() {
-        return this.yPosition > 0;
+        return !TurbolinksSession.this.isAtTop;
 //        return this.webView.getScrollY() > 0;
     }
     
-    @Override
-    public void onScroll(int xPosition, int yPosition, int oldXPosition, int oldYPosition) {
-        this.yPosition = yPosition;
-        this.xPosition = xPosition;
-        if(this.swipeRefreshEnabledListener != null) {
-            this.swipeRefreshEnabledListener.shouldEnableSwipeRefresh(this.yPosition <= 0);
+    //region CustoWebview scroll changedm Web View Client
+    
+    /**
+     * Custom Webview Client
+     */
+    class MyWebViewClient extends WebViewClient {
+        @Override
+        public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            coldBootInProgress = true;
+        }
+    
+        @Override
+        public void onPageFinished(WebView view, final String location) {
+            TurbolinksLog.d("onPageFinished, loc == " + location);
+            String jsCall = "window.webView == null";
+            webView.evaluateJavascript(jsCall, new ValueCallback<String>() {
+                @Override
+                public void onReceiveValue(String s) {
+                    if (Boolean.parseBoolean(s) && !bridgeInjectionInProgress) {
+                        bridgeInjectionInProgress = true;
+                        TurbolinksHelper.injectTurbolinksBridge(TurbolinksSession.this, applicationContext, webView);
+                        TurbolinksLog.d("Bridge injected");
+                    
+                        turbolinksAdapter.onPageFinished();
+                    } else {
+                        TurbolinksLog.d("bridgeInjectionInProgress, passing along callback else it will never be called");
+                        turbolinksAdapter.onPageFinished();
+                    }
+                }
+            });
+            try {
+//                view.loadUrl(JAVASCRIPT_GET_WEB_PAGE_HEIGHT);
+//                TurbolinksHelper.runJavascript(applicationContext, webView, functionName, params);
+                webView.evaluateJavascript(JAVASCRIPT_GET_WEB_PAGE_HEIGHT, new ValueCallback<String>() {
+                    @Override
+                    public void onReceiveValue(String value) {
+                        try {
+                            float f = Float.valueOf(value);
+                            float density = applicationContext.getResources().getDisplayMetrics().density;
+                            float x = (f * density);
+                            TurbolinksSession.this.heightOfPage = (int) x;
+                        } catch (Exception e){}
+                    }
+                });
+            } catch (Exception e){
+                e.printStackTrace();
+            }
+        }
+    
+        /**
+         * Turbolinks will not call adapter.visitProposedToLocationWithAction in some cases,
+         * like target=_blank or when the domain doesn't match. We still route those here.
+         * This is mainly only called when links within a webView are clicked and not during
+         * loadUrl. However, a redirect on a cold boot can also cause this to fire, so don't
+         * override in that situation, since Turbolinks is not yet ready.
+         * http://stackoverflow.com/a/6739042/3280911
+         */
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String location) {
+            if (!turbolinksIsReady || coldBootInProgress) {
+                try {
+//                    TurbolinksLog.d("Changing normal behavior, passing back up the adapter callback as reload");
+//                    turbolinksAdapter.visitProposedToLocationWithAction(location, ACTION_RELOAD);
+                    return true;
+                } catch (Exception e){
+                    TurbolinksLog.d("Exception in shouldOverrideUrlLoading: " + e.getMessage());
+                }
+                return false;
+            }
+        
+            /**
+             * Prevents firing twice in a row within a few milliseconds of each other, which
+             * happens. So we check for a slight delay between requests, which is plenty of time
+             * to allow for a user to click the same link again.
+             */
+            long currentOverrideTime = new Date().getTime();
+            if ((currentOverrideTime - previousOverrideTime) > 500) {
+                previousOverrideTime = currentOverrideTime;
+                TurbolinksLog.d("Overriding load: " + location);
+                visitProposedToLocationWithAction(location, ACTION_ADVANCE);
+            }
+        
+            return true;
+        }
+    
+        @Override
+        public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+            super.onReceivedError(view, errorCode, description, failingUrl);
+            resetToColdBoot();
+        
+            turbolinksAdapter.onReceivedError(errorCode);
+            TurbolinksLog.d("onReceivedError: " + errorCode);
+        }
+    
+        @Override
+        @TargetApi(Build.VERSION_CODES.M)
+        public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+            super.onReceivedHttpError(view, request, errorResponse);
+        
+            if (request.isForMainFrame()) {
+                resetToColdBoot();
+                turbolinksAdapter.onReceivedError(errorResponse.getStatusCode());
+                TurbolinksLog.d("onReceivedHttpError: " + errorResponse.getStatusCode());
+            }
         }
     }
     
-    @Override
-    public void onScroll(WebView v, int xPosition, int yPosition, int oldXPosition, int oldYPosition) {
-        //Will not trigger, minimum SDK <23
+    //endregion
+    
+    //region Private Custom Methods
+    
+    private void stopRefreshing(){
+        try {
+            this.turbolinksView.getRefreshLayout().setRefreshing(false);
+        } catch (Exception e){}
     }
+    
+    
+    /**
+     * Set the webview scroll listener
+     */
+    private void setWebviewScrollListener(){
+        if(this.webView == null){
+            TurbolinksLog.d("Attempted to setWebviewScrollListener, but webview null");
+            return;
+        }
+        TurbolinksLog.d("Setting setWebviewScrollListener");
+        this.webView.getViewTreeObserver().addOnScrollChangedListener(
+                new ViewTreeObserver.OnScrollChangedListener() {
+                    @Override
+                    public void onScrollChanged() {
+                        if(webView.getScrollY() == 0){
+                            //At top
+                            try {
+                                TurbolinksSession.this.turbolinksView.getRefreshLayout().setEnabled(true);
+                                TurbolinksSession.this.isAtTop = true;
+                            } catch (Exception e){}
+                        } else {
+                            //Not at top
+                            try {
+                                TurbolinksSession.this.turbolinksView.getRefreshLayout().setEnabled(false);
+                                TurbolinksSession.this.isAtTop = false;
+                            } catch (Exception e){}
+                        }
+                    }
+                });
+    }
+    
+    //endregion
 }
