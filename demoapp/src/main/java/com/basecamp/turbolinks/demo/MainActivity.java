@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity implements TurbolinksAdapter
     }
     
     @Override
-    public void onPageDoesntSupportTurbolinks() {
+    public void onPageSupportsTurbolinks(boolean bool) {
     
     }
     

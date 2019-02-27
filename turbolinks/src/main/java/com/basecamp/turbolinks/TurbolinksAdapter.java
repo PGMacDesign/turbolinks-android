@@ -15,10 +15,10 @@ public interface TurbolinksAdapter {
     void reloadPageViaRefreshTriggered();
     
     /**
-     * Called when the page loaded does not support turbolinks and there is
-     * an issue instantiating turbolinks_bridge.js
+     * Called when the page loaded does or does not support turbolinks. If there is
+     * an issue instantiating turbolinks_bridge.js, it will send false, else, true
      */
-    void onPageDoesntSupportTurbolinks();
+    void onPageSupportsTurbolinks(boolean doesSupport);
     
     /**
      * <p>Called after the Turbolinks Javascript bridge has been injected into the webView, during the

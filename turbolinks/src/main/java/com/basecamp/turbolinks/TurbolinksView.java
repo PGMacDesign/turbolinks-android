@@ -93,6 +93,36 @@ public class TurbolinksView extends FrameLayout  {
         addView(refreshLayout, 0);
     }
     
+    /**
+     * Manually add a refresh listener to take actions against
+     * @param swipeRefreshListener {@link androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener}
+     */
+    public void setOnRefreshListener(SwipeRefreshLayout.OnRefreshListener swipeRefreshListener){
+        try {
+            this.refreshLayout.setOnRefreshListener(swipeRefreshListener);
+        } catch (Exception e){}
+    }
+    
+    /**
+     * Used to manually stop the refreshing trigger. This is designed for use when the
+     * view gets bugged and refreshing never ends / is stuck
+     */
+    public void stopRefreshing(){
+        try {
+            this.refreshLayout.setRefreshing(false);
+        } catch (Exception e){}
+    }
+    
+    /**
+     * Used to manually stop / start the refreshing trigger. This is designed for use when the
+     * view gets bugged and refreshing never ends / is stuck
+     */
+    public void setRefreshing(boolean isRefreshing){
+        try {
+            this.refreshLayout.setRefreshing(isRefreshing);
+        } catch (Exception e){}
+    }
+    
     // ---------------------------------------------------
     // Package public
     // ---------------------------------------------------

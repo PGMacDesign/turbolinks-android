@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebResourceRequest;
@@ -19,6 +20,7 @@ import android.webkit.WebViewClient;
 import java.util.Date;
 import java.util.HashMap;
 
+import androidx.annotation.NonNull;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 /**
@@ -40,7 +42,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     boolean screenshotsEnabled;
     boolean pullToRefreshEnabled;
     boolean webViewAttachedToNewParent;
-    boolean isAtTop, isAtBottom;
+    boolean isAtTop;
     int xPosition, yPosition, heightOfPage;
     long previousOverrideTime;
     Activity activity;
@@ -67,7 +69,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     static final int PROGRESS_INDICATOR_DELAY = 500;
 
     final Context applicationContext;
-    final WebView webView;
+    WebView webView; //Removed final prefix on 20192-27
 
     // ---------------------------------------------------
     // Constructor
@@ -78,27 +80,29 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      *
      * @param context Any Android context.
      */
-    private TurbolinksSession(final Context context) {
+    private TurbolinksSession(@NonNull final Context context) {
         if (context == null) {
             throw new IllegalArgumentException("Context must not be null.");
         }
-        this.isAtTop = true;
-        this.isAtBottom = false;
+        this.isAtTop = false;
         this.pullToRefreshEnabled = true;
         this.applicationContext = context.getApplicationContext();
         this.screenshotsEnabled = true;
-//        this.pullToRefreshEnabled = true;
+//        this.pullToRefreshEnabled = false;
         this.webViewAttachedToNewParent = false;
 
+        
         this.webView = TurbolinksHelper.createWebView(applicationContext);
         this.webView.addJavascriptInterface(this, JAVASCRIPT_INTERFACE_NAME);
         this.webView.setWebViewClient(new MyWebViewClient());
+        this.setWebviewScrollListener();
     }
 
     // ---------------------------------------------------
     // Initialization
     // ---------------------------------------------------
 
+    
     /**
      * Creates a brand new TurbolinksSession that the calling application will be responsible for
      * managing.
@@ -305,9 +309,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      * Public accessor to stop the refresh layout indicator
      */
     public void stopRefreshingManual(){
-        try {
-            this.turbolinksView.getRefreshLayout().setRefreshing(false);
-        } catch (Exception e){}
+        this.stopRefreshing();
     }
     
     
@@ -474,7 +476,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                 @Override
                 public void run() {
                     turbolinksAdapter.visitCompleted();
-                    turbolinksView.getRefreshLayout().setRefreshing(false);
+                    stopRefreshing();
                 }
             });
         }
@@ -531,6 +533,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                 if (turbolinksIsReady && TextUtils.equals(visitIdentifier, currentVisitIdentifier)) {
                     TurbolinksLog.d("Hiding progress view for visitIdentifier: " + visitIdentifier + ", currentVisitIdentifier: " + currentVisitIdentifier);
                     turbolinksView.hideProgress();
+                } else {
+                    stopRefreshing();
                 }
             }
         });
@@ -550,9 +554,9 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @android.webkit.JavascriptInterface
     public void setTurbolinksIsReady(boolean turbolinksIsReady) {
         this.turbolinksIsReady = turbolinksIsReady;
-
         if (turbolinksIsReady) {
-            bridgeInjectionInProgress = false;
+            this.turbolinksAdapter.onPageSupportsTurbolinks(true);
+            this.bridgeInjectionInProgress = false;
 
             TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
                 @Override
@@ -561,8 +565,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                     visitCurrentLocationWithTurbolinks();
                 }
             });
-
-            coldBootInProgress = false;
+    
+            this.coldBootInProgress = false;
         } else {
             TurbolinksLog.d("TurbolinksSession is not ready. Resetting and throw error.");
             resetToColdBoot();
@@ -581,7 +585,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @android.webkit.JavascriptInterface
     public void turbolinksDoesNotExist() {
         TurbolinksLog.d("turbolinksDoesNotExist on this page, going to cold boot");
-        turbolinksAdapter.onPageDoesntSupportTurbolinks();
+        turbolinksAdapter.onPageSupportsTurbolinks(false);
         TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
             @Override
             public void run() {
@@ -595,7 +599,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     // -----------------------------------------------------------------------
     // Public
     // -----------------------------------------------------------------------
-
+    
     /**
      * <p>Provides the ability to add an arbitrary number of custom Javascript Interfaces to the built-in
      * Turbolinks webView.</p>
@@ -789,14 +793,11 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      */
     @Override
     public boolean canChildScrollUp() {
-        TurbolinksLog.d("canChildScrollUp, yPosition == " + yPosition);
-        TurbolinksLog.d("canChildScrollUp, coldBootInProgress?? " + coldBootInProgress);
-        TurbolinksLog.d("canChildScrollUp, turbolinksIsReady?? " + turbolinksIsReady);
-//        return this.yPosition > 0;
-        return this.webView.getScrollY() > 0;
+        return !TurbolinksSession.this.isAtTop;
+//        return this.webView.getScrollY() > 0;
     }
     
-    //region Custom Web View Client
+    //region CustoWebview scroll changedm Web View Client
     
     /**
      * Custom Webview Client
@@ -901,6 +902,47 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                 TurbolinksLog.d("onReceivedHttpError: " + errorResponse.getStatusCode());
             }
         }
+    }
+    
+    //endregion
+    
+    //region Private Custom Methods
+    
+    private void stopRefreshing(){
+        try {
+            this.turbolinksView.getRefreshLayout().setRefreshing(false);
+        } catch (Exception e){}
+    }
+    
+    
+    /**
+     * Set the webview scroll listener
+     */
+    private void setWebviewScrollListener(){
+        if(this.webView == null){
+            TurbolinksLog.d("Attempted to setWebviewScrollListener, but webview null");
+            return;
+        }
+        TurbolinksLog.d("Setting setWebviewScrollListener");
+        this.webView.getViewTreeObserver().addOnScrollChangedListener(
+                new ViewTreeObserver.OnScrollChangedListener() {
+                    @Override
+                    public void onScrollChanged() {
+                        if(webView.getScrollY() == 0){
+                            //At top
+                            try {
+                                TurbolinksSession.this.turbolinksView.getRefreshLayout().setEnabled(true);
+                                TurbolinksSession.this.isAtTop = true;
+                            } catch (Exception e){}
+                        } else {
+                            //Not at top
+                            try {
+                                TurbolinksSession.this.turbolinksView.getRefreshLayout().setEnabled(false);
+                                TurbolinksSession.this.isAtTop = false;
+                            } catch (Exception e){}
+                        }
+                    }
+                });
     }
     
     //endregion

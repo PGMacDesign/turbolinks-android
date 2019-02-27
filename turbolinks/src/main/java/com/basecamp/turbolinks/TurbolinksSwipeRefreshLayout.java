@@ -51,4 +51,7 @@ class TurbolinksSwipeRefreshLayout extends SwipeRefreshLayout {
      * @param callback The custom callback to be set
      */
     void setCallback(TurbolinksScrollUpCallback callback) { this.callback = callback; }
+    
+    
+    
 }
