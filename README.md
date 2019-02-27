@@ -38,7 +38,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.pgmacdesign:turbolinks-android:1.1.1'
+    implementation 'com.github.pgmacdesign:turbolinks-android:1.1.2'
 }
 ```
 
@@ -102,17 +102,12 @@ protected void onCreate(Bundle savedInstanceState) {
                      .adapter(this)
                      .view(turbolinksView);
     
-    //Optional, but recommended if nested within a Swipe Refresh View
-    this.turbolinksSession.setSwipeRefreshEnabledListener(new SwipeRefreshEnabledListener() {
-        @Override
-        public void shouldEnableSwipeRefresh(boolean b) {
-            mySwipeRefreshView.setEnabled(b);
-        }
-    });
-    
     //Optional, set cookies or a custom user-agent String
     this.turbolinksSession.setCookie(myCookieUrl, myCookieString);
-    this.turbolinksSession.adjustUserAgentString(myNewUserAgentString);
+    //Optional, This will append the custom user agent string to the existing one, send false to overwrite.
+    this.turbolinksSession.adjustUserAgentString(myNewUserAgentString, true);
+    //Optional, set debug logging (Defaults to false)
+    TurbolinksSession.setDebugLoggingEnabled(true);
     
     //Load a page
     this.turbolinksSession.visit("https://basecamp.com");
