@@ -53,6 +53,14 @@ public interface TurbolinksAdapter {
     void visitCompleted();
 
     /**
+     * <p>Called when Turbolinks completes a visit to a location and it is handled by the webview.</p>
+     * <p>This can occur if the site does not support turbolinks and is instead handled by the webview</p>
+     *
+     * @param location URL that was loaded by the webview.
+     */
+    void visitCompletedByWebview(String location);
+    
+    /**
      * <p>Called when Turbolinks first starts a visit, typically from a link inside a webView.</p>
      *
      * @param location URL to be visited.

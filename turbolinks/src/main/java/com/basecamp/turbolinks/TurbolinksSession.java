@@ -822,7 +822,6 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                     
                         turbolinksAdapter.onPageFinished();
                     } else {
-                        TurbolinksLog.d("bridgeInjectionInProgress, passing along callback else it will never be called");
                         turbolinksAdapter.onPageFinished();
                     }
                 }
@@ -860,7 +859,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                 try {
 //                    TurbolinksLog.d("Changing normal behavior, passing back up the adapter callback as reload");
 //                    turbolinksAdapter.visitProposedToLocationWithAction(location, ACTION_RELOAD);
-                    return true;
+//                    return true;
+                    view.loadUrl(location);
+                    TurbolinksSession.this.turbolinksAdapter.visitCompletedByWebview(location);
+                    return false;
                 } catch (Exception e){
                     TurbolinksLog.d("Exception in shouldOverrideUrlLoading: " + e.getMessage());
                 }

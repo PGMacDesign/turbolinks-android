@@ -38,7 +38,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.pgmacdesign:turbolinks-android:1.1.2'
+    implementation 'com.github.pgmacdesign:turbolinks-android:1.1.3'
 }
 ```
 
@@ -142,6 +142,12 @@ this.startActivity(intent);
 
 In more complex apps, you'll most likely want to do some routing logic here. Should you open another WebView Activity? Should you open a native Activity in certain cases? This is the place to do that logic.
 
+#### visitCompletedByWebview
+
+This callback is used when the url loaded does not support Turbolinks and loads it instead using the webview component. 
+
+This method passes back a String that can be used to maintain the current page URL as attempting to get the webview using TurbolinksSession will throw a wrong thread exception. 
+
 #### onPageFinished
 
 This is a callback that's executed at the end of the standard [WebViewClient's onPageFinished](http://developer.android.com/reference/android/webkit/WebViewClient.html#onPageFinished(android.webkit.WebView,%20java.lang.String)) method.
@@ -173,6 +179,18 @@ This is a callback from Turbolinks telling you that an XHR request has failed.
 This is a callback from Turbolinks telling you that a change has been detected in a resource/asset in the `<HEAD>`, and as a result the Turbolinks state has been invalidated. Most likely the web app has been updated while the app was using it.
 
 The library will automatically fall back to cold booting the location (which it must do since resources have been changed) and then will notify you via this callback that the page was invalidated. This is an opportunity for you to clean up any UI state that you might have lingering around that may no longer be valid (title data, etc.)
+
+#### onPageSupportsTurbolinks
+
+This callback is used when a page loads that either does or does not support Turbolinks. It will load for every page so it is suggested that you only use it if you are trying to utilize the fact that the page does not support turbolinks. 
+
+This is a helpful callback whenever the page you are trying to load does not support Turbolinks as it can cause interacting with the TurbolinksSession to behave oddly. 
+
+#### reloadPageViaRefreshTriggered
+
+This callback is triggered whenever the user manually initiates the swipe / pull to refresh option on a page by pulling down from the top. 
+
+The page will reload the existing URL, but this can also be used for custom Progress Bar loading animations as the visitCompleted() callback will trigger once the call has been fully made and completed (For dismissing an indetermininte progress bar). 
 
 ### Overriding Default TurbolinksSession Settings
 There are some optional features in TurbolinksSession that are enabled by default.

@@ -101,7 +101,12 @@ public class MainActivity extends AppCompatActivity implements TurbolinksAdapter
     public void visitCompleted() {
 
     }
-
+    
+    @Override
+    public void visitCompletedByWebview(String location) {
+    
+    }
+    
     // The starting point for any href clicked inside a Turbolinks enabled site. In a simple case
     // you can just open another activity, or in more complex cases, this would be a good spot for
     // routing logic to take you to the right place within your app.
