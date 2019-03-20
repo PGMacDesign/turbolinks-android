@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.View;
 import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
@@ -28,11 +29,14 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
  */
 public class TurbolinksSession implements TurbolinksScrollUpCallback {
 
+    //region Final Static Vars
     private static final String JAVASCRIPT_GET_WEB_PAGE_HEIGHT =
             "document.body.scrollHeight";
     
+    //endregion
+    
     // ---------------------------------------------------
-    // Package public vars (allows for greater flexibility and access for testing)
+    //region  Package public vars (allows for greater flexibility and access for testing)
     // ---------------------------------------------------
 
     boolean bridgeInjectionInProgress; // Ensures the bridge is only injected once
@@ -46,6 +50,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     int xPosition, yPosition, heightOfPage;
     long previousOverrideTime;
     Activity activity;
+    HashMap<String, String> customHeaders = new HashMap<>();
     HashMap<String, Object> javascriptInterfaces = new HashMap<>();
     HashMap<String, String> restorationIdentifierMap = new HashMap<>();
     String location;
@@ -57,8 +62,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 
     static volatile TurbolinksSession defaultInstance;
 
+    //endregion
+    
     // ---------------------------------------------------
-    // Final vars
+    //region  Final vars
     // ---------------------------------------------------
 
     static final String ACTION_ADVANCE = "advance";
@@ -69,10 +76,13 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     static final int PROGRESS_INDICATOR_DELAY = 500;
 
     final Context applicationContext;
-    WebView webView; //Removed final prefix on 20192-27
+    
+    WebView webView; //Removed final prefix on 2019-02-27
 
+    //endregion
+    
     // ---------------------------------------------------
-    // Constructor
+    //region  Constructor
     // ---------------------------------------------------
 
     /**
@@ -96,10 +106,18 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         this.webView.addJavascriptInterface(this, JAVASCRIPT_INTERFACE_NAME);
         this.webView.setWebViewClient(new MyWebViewClient());
         this.setWebviewScrollListener();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            this.webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        } else if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB &&
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
+            this.webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
     }
 
+    //endregion
+    
     // ---------------------------------------------------
-    // Initialization
+    //region Initialization
     // ---------------------------------------------------
 
     
@@ -151,6 +169,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     public static void setDebugLoggingEnabled(boolean enabled) {
         TurbolinksLog.setDebugLoggingEnabled(enabled);
     }
+    
+    //endregion
     
     //region Custom Setters
     
@@ -205,7 +225,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     //endregion
     
     // ---------------------------------------------------
-    // Required chained methods
+    //region Required chained methods
     // ---------------------------------------------------
 
     /**
@@ -290,7 +310,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 
         if (!turbolinksIsReady && !coldBootInProgress) {
             TurbolinksLog.d("Cold booting: " + location);
-            webView.loadUrl(location);
+            TurbolinksSession.this.initCustomHeaders();
+            webView.loadUrl(location, TurbolinksSession.this.customHeaders);
         }
 
         // Reset so that cached snapshot is not the default for the next visit
@@ -305,27 +326,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         */
     }
     
-    /**
-     * Public accessor to stop the refresh layout indicator
-     */
-    public void stopRefreshingManual(){
-        this.stopRefreshing();
-    }
-    
-    
-    /**
-     * Manual setter for refreshing
-     * {@link androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener} manually
-     * @param isRefreshing
-     */
-    public void setRefreshingManual(boolean isRefreshing){
-        try {
-            this.turbolinksView.getRefreshLayout().setRefreshing(isRefreshing);
-        } catch (Exception e){}
-    }
+    //endregion
     
     // ---------------------------------------------------
-    // Optional chained methods
+    //region Optional chained methods
     // ---------------------------------------------------
 
     /**
@@ -342,8 +346,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         return this;
     }
 
+    //endregion
+    
     // ---------------------------------------------------
-    // TurbolinksNative adapter methods
+    //region  TurbolinksNative adapter methods
     // ---------------------------------------------------
 
     /**
@@ -481,7 +487,6 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
             });
         }
     }
-   
     
     /**
      * <p><b>JavascriptInterface only</b> Called when Turbolinks detects that the page being visited
@@ -507,8 +512,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         });
     }
 
+    //endregion
+    
     // ---------------------------------------------------
-    // TurbolinksNative helper methods
+    //region  TurbolinksNative helper methods
     // ---------------------------------------------------
 
     /**
@@ -596,9 +603,85 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         });
     }
 
+    //endregion
+    
     // -----------------------------------------------------------------------
-    // Public
+    //region  Public
     // -----------------------------------------------------------------------
+    
+    //region Custom Headers
+    /**
+     * Override the existing custom headers with the ones passed
+     * @param headers
+     */
+    public void setHeaders(HashMap<String, String> headers){
+        if(headers == null){
+            return;
+        }
+        if(headers.size() <= 0){
+            return;
+        }
+        this.customHeaders = headers;
+    }
+    
+    /**
+     * Add a single header to the {@link TurbolinksSession#customHeaders} map
+     * @param key Key The key to set. If attempting to send "user-agent", will forward instead to
+     *            {@link TurbolinksSession#adjustUserAgentString(String, boolean)} with second param as true
+     * @param value Value Value to set
+     */
+    public void addHeader(String key, String value){
+        if(key == null || value == null){
+            return;
+        }
+        if(key.isEmpty() || value.isEmpty()){
+            return;
+        }
+        if(key.equalsIgnoreCase("user-agent")){
+            this.adjustUserAgentString(value, true);
+            return;
+        }
+        this.initCustomHeaders();
+        this.customHeaders.put(key, value);
+    }
+    
+    /**
+     * Remove a header from the existing {@link TurbolinksSession#customHeaders}
+     * @param key Key to remove
+     */
+    public void removeHeader(String key){
+        this.initCustomHeaders();
+        if(this.customHeaders.containsKey(key)){
+            this.customHeaders.remove(key);
+        }
+    }
+    
+    /**
+     * Clear all headers from the existing {@link TurbolinksSession#customHeaders}
+     */
+    public void clearHeaders(){
+        this.customHeaders = new HashMap<>();
+    }
+    
+    /**
+     * Public accessor to stop the refresh layout indicator
+     */
+    public void stopRefreshingManual(){
+        this.stopRefreshing();
+    }
+    
+    //endregion
+    
+    /**
+     * Manual setter for refreshing
+     * {@link androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener} manually
+     * @param isRefreshing
+     */
+    public void setRefreshingManual(boolean isRefreshing){
+        try {
+            this.turbolinksView.getRefreshLayout().setRefreshing(isRefreshing);
+        } catch (Exception e){}
+    }
     
     /**
      * <p>Provides the ability to add an arbitrary number of custom Javascript Interfaces to the built-in
@@ -710,10 +793,22 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                 TurbolinksHelper.encodeUrl(location), action, getRestorationIdentifierFromMap());
     }
 
+    //endregion
+    
     // ---------------------------------------------------
-    // Private
+    
+    //region  Private
     // ---------------------------------------------------
-
+    
+    /**
+     * Simple init for the custom headers map
+     */
+    private void initCustomHeaders(){
+        if(this.customHeaders == null){
+            this.customHeaders = new HashMap<>();
+        }
+    }
+    
     /**
      * <p>Adds the restoration (cached scroll position) identifier to the local Hashmap.</p>
      *
@@ -768,6 +863,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         }
     }
 
+    //endregion
+    
     //region Getters
     public int getWebviewXPosition(){
         return this.xPosition;
@@ -783,7 +880,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     //endregion
     
     // ---------------------------------------------------
-    // Interfaces
+    //region  Interfaces
     // ---------------------------------------------------
 
     /**
@@ -797,7 +894,9 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 //        return this.webView.getScrollY() > 0;
     }
     
-    //region CustoWebview scroll changedm Web View Client
+    //endregion
+    
+    //region CustomWebview scroll changed Web View Client
     
     /**
      * Custom Webview Client
@@ -860,7 +959,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 //                    TurbolinksLog.d("Changing normal behavior, passing back up the adapter callback as reload");
 //                    turbolinksAdapter.visitProposedToLocationWithAction(location, ACTION_RELOAD);
 //                    return true;
-                    view.loadUrl(location);
+                    TurbolinksSession.this.initCustomHeaders();
+                    view.loadUrl(location, TurbolinksSession.this.customHeaders);
                     TurbolinksSession.this.turbolinksAdapter.visitCompletedByWebview(location);
                     return false;
                 } catch (Exception e){
