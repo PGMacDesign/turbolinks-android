@@ -107,10 +107,14 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         this.webView.setWebViewClient(new MyWebViewClient());
         this.setWebviewScrollListener();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            this.webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            try {
+                this.webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            } catch (Exception e){}
         } else if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB &&
                 Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
-            this.webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            try {
+                this.webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            } catch (Exception e){}
         }
     }
 
