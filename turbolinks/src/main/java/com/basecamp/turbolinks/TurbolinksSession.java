@@ -47,6 +47,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     boolean pullToRefreshEnabled;
     boolean webViewAttachedToNewParent;
     boolean isAtTop;
+    private String cookieString;
     int xPosition, yPosition, heightOfPage;
     long previousOverrideTime;
     Activity activity;
@@ -196,6 +197,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         } else {
             CookieManager.getInstance().setAcceptCookie(true);
         }
+        this.cookieString = cookieString;
         CookieManager.getInstance().setCookie(baseUrl, cookieString);
         return true;
     }
@@ -305,17 +307,24 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         validateRequiredParams();
 
         if (!turbolinksIsReady || webViewAttachedToNewParent) {
+        	if(!turbolinksIsReady) {
+		        TurbolinksLog.d("!turbolinksIsReady");
+	        } else {
+		        TurbolinksLog.d("webViewAttachedToNewParent");
+	        }
             //todo Would normally have a callback function here for progress bar
         }
 
         if (turbolinksIsReady) {
+	        TurbolinksLog.d("turbolinksIsReady, calling visitCurrentLocationWithTurbolinks with Url: " + this.location);
             visitCurrentLocationWithTurbolinks();
         }
 
         if (!turbolinksIsReady && !coldBootInProgress) {
-            TurbolinksLog.d("Cold booting: " + location);
+	        TurbolinksLog.d("!turbolinksIsReady && !coldBootInProgress, loadingUrl: " + this.location);
+            TurbolinksLog.d("Cold booting: " + this.location);
             TurbolinksSession.this.initCustomHeaders();
-            webView.loadUrl(location, TurbolinksSession.this.customHeaders);
+            webView.loadUrl(this.location, TurbolinksSession.this.customHeaders);
         }
 
         // Reset so that cached snapshot is not the default for the next visit
@@ -329,7 +338,43 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         we open that last location.
         */
     }
-    
+	
+	/**
+	 * Call replace on the current page by loading a different URL.
+	 * Note! This will clear the history!
+	 * @param location
+	 */
+	public void replaceExistingPage(String location){
+		TurbolinksLog.d("reaplce existing page called");
+		
+		this.location = location;
+		
+		validateRequiredParams();
+		
+		if (!turbolinksIsReady || webViewAttachedToNewParent) {
+			if(!turbolinksIsReady) {
+				TurbolinksLog.d("!turbolinksIsReady");
+			} else {
+				TurbolinksLog.d("webViewAttachedToNewParent");
+			}
+			//todo Would normally have a callback function here for progress bar
+		}
+		
+		if (turbolinksIsReady) {
+			TurbolinksLog.d("turbolinksIsReady, calling visitCurrentLocationWithTurbolinks with Url: " + this.location);
+			visitLocationWithAction(location, ACTION_REPLACE);
+		}
+		
+		if (!turbolinksIsReady && !coldBootInProgress) {
+			TurbolinksLog.d("!turbolinksIsReady && !coldBootInProgress, loadingUrl: " + this.location);
+			TurbolinksLog.d("Cold booting: " + this.location);
+			TurbolinksSession.this.initCustomHeaders();
+			webView.loadUrl(this.location, TurbolinksSession.this.customHeaders);
+		}
+		this.webView.clearHistory();
+		// Reset so that cached snapshot is not the default for the next visit
+		restoreWithCachedSnapshot = false;
+    }
     //endregion
     
     // ---------------------------------------------------
@@ -434,7 +479,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitRequestFailedWithStatusCode(final String visitIdentifier, final int statusCode) {
-        TurbolinksLog.d("visitRequestFailedWithStatusCode called");
+        TurbolinksLog.d("visitRequestFailedWithStatusCode called. Status code passed from parent method: " + statusCode);
         hideProgressView(visitIdentifier);
 
         if (TextUtils.equals(visitIdentifier, currentVisitIdentifier)) {
@@ -564,25 +609,26 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void setTurbolinksIsReady(boolean turbolinksIsReady) {
-        this.turbolinksIsReady = turbolinksIsReady;
-        if (turbolinksIsReady) {
-            this.turbolinksAdapter.onPageSupportsTurbolinks(true);
-            this.bridgeInjectionInProgress = false;
-
-            TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
-                @Override
-                public void run() {
-                    TurbolinksLog.d("TurbolinksSession is ready");
-                    visitCurrentLocationWithTurbolinks();
-                }
-            });
-    
-            this.coldBootInProgress = false;
-        } else {
-            TurbolinksLog.d("TurbolinksSession is not ready. Resetting and throw error.");
-            resetToColdBoot();
-            visitRequestFailedWithStatusCode(currentVisitIdentifier, 500);
-        }
+	    TurbolinksLog.d("setTurbolinksIsReady: " + turbolinksIsReady);
+	    this.turbolinksIsReady = turbolinksIsReady;
+	    if (turbolinksIsReady) {
+		    this.turbolinksAdapter.onPageSupportsTurbolinks(true);
+		    this.bridgeInjectionInProgress = false;
+		
+		    TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
+			    @Override
+			    public void run() {
+				    TurbolinksLog.d("TurbolinksSession is ready");
+				    visitCurrentLocationWithTurbolinks();
+			    }
+		    });
+		
+		    this.coldBootInProgress = false;
+	    } else {
+		    TurbolinksLog.d("TurbolinksSession is not ready. Resetting and throw error.");
+		    resetToColdBoot();
+		    visitRequestFailedWithStatusCode(currentVisitIdentifier, 500);
+	    }
     }
 
     /**
@@ -612,7 +658,24 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     // -----------------------------------------------------------------------
     //region  Public
     // -----------------------------------------------------------------------
-    
+	
+	private void clearInstance(){
+        this.webView.clearFormData();
+        this.webView = null;
+		this.turbolinksAdapter = null;
+		this.turbolinksView = null;
+		
+	}
+	
+	/**
+	 * Get and return the Cookie String set
+	 * @return
+	 */
+	public String getCookieString(){
+    	return this.cookieString;
+	}
+	
+	
     //region Custom Headers
     /**
      * Override the existing custom headers with the ones passed
@@ -725,16 +788,17 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     public WebView getWebView() {
         return webView;
     }
-
-    /**
-     * <p>Resets the TurbolinksSession to go through the full cold booting sequence (full page load)
-     * on the next Turbolinks visit.</p>
-     */
-    public void resetToColdBoot() {
-        bridgeInjectionInProgress = false;
-        turbolinksIsReady = false;
-        coldBootInProgress = false;
-    }
+	
+	/**
+	 * <p>Resets the TurbolinksSession to go through the full cold booting sequence (full page load)
+	 * on the next Turbolinks visit.</p>
+	 * This method should also be used whenever the page is intended to be completely reloaded
+	 */
+	public void resetToColdBoot() {
+		this.bridgeInjectionInProgress = false;
+		this.turbolinksIsReady = false;
+		this.coldBootInProgress = false;
+	}
 
     /**
      * <p>Runs a Javascript function with any number of arbitrary params in the Turbolinks webView.</p>
@@ -839,10 +903,18 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      * {@link #setTurbolinksIsReady(boolean)}</p>
      */
     private void visitCurrentLocationWithTurbolinks() {
-        TurbolinksLog.d("Visiting current stored location: " + location);
-
         String action = restoreWithCachedSnapshot ? ACTION_RESTORE : ACTION_ADVANCE;
-        visitLocationWithAction(location, action);
+	    visitCurrentLocationWithTurbolinks(action);
+    }
+
+    /**
+     * <p>Convenience method to simply revisit the current location in the TurbolinksSession. Useful
+     * so that different visit logic can be wrappered around this call in {@link #visit} or
+     * {@link #setTurbolinksIsReady(boolean)}</p>
+     */
+    private void visitCurrentLocationWithTurbolinks(String forcedAction) {
+        TurbolinksLog.d("Visiting current stored location: " + location);
+        visitLocationWithAction(location, forcedAction);
     }
 
     /**
@@ -987,15 +1059,16 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         
             return true;
         }
-    
-        @Override
-        public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-            super.onReceivedError(view, errorCode, description, failingUrl);
-            resetToColdBoot();
-        
-            turbolinksAdapter.onReceivedError(errorCode);
-            TurbolinksLog.d("onReceivedError: " + errorCode);
-        }
+	
+	    @Override
+	    public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+		    super.onReceivedError(view, errorCode, description, failingUrl);
+		    resetToColdBoot();
+		
+		    turbolinksAdapter.onReceivedError(errorCode);
+		    TurbolinksLog.d("onReceivedError. Code: " + errorCode + ", Description: " + description + ", Failing URL: " + failingUrl);
+		    TurbolinksLog.d("Webview error is being thrown from matches initially set webview? " + (view == TurbolinksSession.this.webView));
+	    }
     
         @Override
         @TargetApi(Build.VERSION_CODES.M)

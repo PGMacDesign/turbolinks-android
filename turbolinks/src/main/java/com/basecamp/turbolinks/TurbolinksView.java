@@ -217,7 +217,8 @@ public class TurbolinksView extends FrameLayout  {
         if (getBackground() instanceof ColorDrawable) {
             webView.setBackgroundColor(((ColorDrawable) getBackground()).getColor());
         }
-        
+	
+	    TurbolinksLog.d("Adding the webview to the refreshLayout");
         refreshLayout.addView(webView);
         return true;
     }
