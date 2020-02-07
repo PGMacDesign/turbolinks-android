@@ -12,6 +12,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
+import android.webkit.CookieSyncManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -48,6 +49,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     boolean webViewAttachedToNewParent;
     boolean isAtTop;
     private String cookieString;
+    private static StringBuilder tempSBHolder;
     int xPosition, yPosition, heightOfPage;
     long previousOverrideTime;
     Activity activity;
@@ -58,6 +60,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     String currentVisitIdentifier;
     TurbolinksAdapter turbolinksAdapter;
     TurbolinksView turbolinksView;
+    TurbolinksDebugCallback debugCallback;
 //    View progressView;
 //    View progressIndicator;
 
@@ -95,27 +98,37 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         if (context == null) {
             throw new IllegalArgumentException("Context must not be null.");
         }
+	    TurbolinksSession.initTempSB();
+	    TurbolinksSession.tempSBHolder.append("TurbolinksSession private constructor called\n");
         this.isAtTop = false;
         this.pullToRefreshEnabled = true;
         this.applicationContext = context.getApplicationContext();
+	    TurbolinksSession.tempSBHolder.append("Within Constructor, Context != null? " + (this.applicationContext != null) + "\n");
         this.screenshotsEnabled = true;
 //        this.pullToRefreshEnabled = false;
         this.webViewAttachedToNewParent = false;
-
-        
         this.webView = TurbolinksHelper.createWebView(applicationContext);
-        this.webView.addJavascriptInterface(this, JAVASCRIPT_INTERFACE_NAME);
+	    TurbolinksSession.tempSBHolder.append("Within Constructor, finished creating webview \n");
+	    this.webView.addJavascriptInterface(this, JAVASCRIPT_INTERFACE_NAME);
+	    TurbolinksSession.tempSBHolder.append("Within Constructor, successfully added JS Interface: " + JAVASCRIPT_INTERFACE_NAME + " \n");
         this.webView.setWebViewClient(new MyWebViewClient());
+	    TurbolinksSession.tempSBHolder.append("Within Constructor, Set Custom WebViewClient\n");
         this.setWebviewScrollListener();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             try {
                 this.webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-            } catch (Exception e){}
+	            TurbolinksSession.tempSBHolder.append("Within Constructor, API Level >= Kitkat, setting layer type to Hardware \n");
+            } catch (Exception e){
+	            TurbolinksSession.tempSBHolder.append("Error setting hardware type for API Level >= Kitkat: " + e.getMessage() + " \n");
+            }
         } else if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB &&
                 Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) {
             try {
                 this.webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-            } catch (Exception e){}
+	            TurbolinksSession.tempSBHolder.append("Within Constructor, API Level < Kitkat, setting layer type to Software \n");
+            } catch (Exception e){
+	            TurbolinksSession.tempSBHolder.append("Error setting hardware type for API Level < Kitkat: " + e.getMessage() + " \n");
+            }
         }
     }
 
@@ -125,6 +138,11 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     //region Initialization
     // ---------------------------------------------------
 
+    private static void initTempSB(){
+	    if(TurbolinksSession.tempSBHolder == null){
+		    TurbolinksSession.tempSBHolder = new StringBuilder();
+	    }
+    }
     
     /**
      * Creates a brand new TurbolinksSession that the calling application will be responsible for
@@ -134,8 +152,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      * @return TurbolinksSession to be managed by the calling application.
      */
     public static TurbolinksSession getNew(Context context) {
-        TurbolinksLog.d("TurbolinksSession getNew called");
-
+	    TurbolinksSession.initTempSB();
+	    TurbolinksSession.tempSBHolder.append("TurbolinksSession getNew called\n");
         return new TurbolinksSession(context);
     }
 
@@ -147,10 +165,11 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      * @return The default, static instance of a TurbolinksSession, guaranteed to not be null.
      */
     public static TurbolinksSession getDefault(Context context) {
+	    TurbolinksSession.initTempSB();
         if (defaultInstance == null) {
             synchronized (TurbolinksSession.class) {
                 if (defaultInstance == null) {
-                    TurbolinksLog.d("Default instance is null, creating new");
+                	TurbolinksSession.tempSBHolder.append("Default instance is null, creating new\n");
                     defaultInstance = TurbolinksSession.getNew(context);
                 }
             }
@@ -287,6 +306,9 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                 visitLocationWithAction(location, ACTION_REPLACE);
             }
         });
+	    if(this.debugCallback != null){
+		    this.turbolinksView.setDebugCallback(this.debugCallback);
+	    }
         //Callback function on refresh == 'visitLocationWithAction(location, ACTION_ADVANCE);'
         this.webViewAttachedToNewParent = this.turbolinksView.attachWebView(webView, screenshotsEnabled, pullToRefreshEnabled);
 
@@ -300,7 +322,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      * @param location The URL to visit.
      */
     public void visit(String location) {
-        TurbolinksLog.d("visit called");
+	    this.runTempLogsCheck();
+	    TurbolinksLog.d("visit called", TurbolinksSession.this.debugCallback);
 
         this.location = location;
 
@@ -308,21 +331,23 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 
         if (!turbolinksIsReady || webViewAttachedToNewParent) {
         	if(!turbolinksIsReady) {
-		        TurbolinksLog.d("!turbolinksIsReady");
+		        TurbolinksLog.d("!turbolinksIsReady", TurbolinksSession.this.debugCallback);
 	        } else {
-		        TurbolinksLog.d("webViewAttachedToNewParent");
+		        TurbolinksLog.d("webViewAttachedToNewParent", TurbolinksSession.this.debugCallback);
 	        }
             //todo Would normally have a callback function here for progress bar
         }
 
         if (turbolinksIsReady) {
-	        TurbolinksLog.d("turbolinksIsReady, calling visitCurrentLocationWithTurbolinks with Url: " + this.location);
+	        TurbolinksLog.d("turbolinksIsReady, calling visitCurrentLocationWithTurbolinks with Url: " + this.location,
+			        TurbolinksSession.this.debugCallback);
             visitCurrentLocationWithTurbolinks();
         }
 
         if (!turbolinksIsReady && !coldBootInProgress) {
-	        TurbolinksLog.d("!turbolinksIsReady && !coldBootInProgress, loadingUrl: " + this.location);
-            TurbolinksLog.d("Cold booting: " + this.location);
+	        TurbolinksLog.d("!turbolinksIsReady && !coldBootInProgress, loadingUrl: " + this.location,
+			        TurbolinksSession.this.debugCallback);
+            TurbolinksLog.d("Cold booting: " + this.location, TurbolinksSession.this.debugCallback);
             TurbolinksSession.this.initCustomHeaders();
             webView.loadUrl(this.location, TurbolinksSession.this.customHeaders);
         }
@@ -345,7 +370,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 	 * @param location
 	 */
 	public void replaceExistingPage(String location){
-		TurbolinksLog.d("reaplce existing page called");
+		TurbolinksLog.d("reaplce existing page called", TurbolinksSession.this.debugCallback);
 		
 		this.location = location;
 		
@@ -353,21 +378,23 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 		
 		if (!turbolinksIsReady || webViewAttachedToNewParent) {
 			if(!turbolinksIsReady) {
-				TurbolinksLog.d("!turbolinksIsReady");
+				TurbolinksLog.d("!turbolinksIsReady", TurbolinksSession.this.debugCallback);
 			} else {
-				TurbolinksLog.d("webViewAttachedToNewParent");
+				TurbolinksLog.d("webViewAttachedToNewParent", TurbolinksSession.this.debugCallback);
 			}
 			//todo Would normally have a callback function here for progress bar
 		}
 		
 		if (turbolinksIsReady) {
-			TurbolinksLog.d("turbolinksIsReady, calling visitCurrentLocationWithTurbolinks with Url: " + this.location);
+			TurbolinksLog.d("turbolinksIsReady, calling visitCurrentLocationWithTurbolinks with Url: " + this.location,
+					TurbolinksSession.this.debugCallback);
 			visitLocationWithAction(location, ACTION_REPLACE);
 		}
 		
 		if (!turbolinksIsReady && !coldBootInProgress) {
-			TurbolinksLog.d("!turbolinksIsReady && !coldBootInProgress, loadingUrl: " + this.location);
-			TurbolinksLog.d("Cold booting: " + this.location);
+			TurbolinksLog.d("!turbolinksIsReady && !coldBootInProgress, loadingUrl: " + this.location,
+					TurbolinksSession.this.debugCallback);
+			TurbolinksLog.d("Cold booting: " + this.location, TurbolinksSession.this.debugCallback);
 			TurbolinksSession.this.initCustomHeaders();
 			webView.loadUrl(this.location, TurbolinksSession.this.customHeaders);
 		}
@@ -380,6 +407,21 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     // ---------------------------------------------------
     //region Optional chained methods
     // ---------------------------------------------------
+	
+	/**
+	 * <p><b>OPTIONAL</b> A {@link TurbolinksDebugCallback} implementation is optional and
+	 * is used to send debug messages back long the listener if debug logging is enabled</p>
+	 *
+	 * @param debugCallback Callback for Logging {@link TurbolinksDebugCallback}.
+	 * @return The TurbolinksSession to continue the chained calls.
+	 */
+	public TurbolinksSession debugCallback(TurbolinksDebugCallback debugCallback) {
+		this.debugCallback = debugCallback;
+		if(this.turbolinksView != null){
+			this.turbolinksView.setDebugCallback(this.debugCallback);
+		}
+		return this;
+	}
 
     /**
      * <p><b>Optional</b> By default Turbolinks will "advance" to the next page and scroll position
@@ -414,7 +456,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitProposedToLocationWithAction(final String location, final String action) {
-        TurbolinksLog.d("visitProposedToLocationWithAction called");
+        TurbolinksLog.d("visitProposedToLocationWithAction called", TurbolinksSession.this.debugCallback);
         try {
             TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
                 @Override
@@ -423,7 +465,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                 }
             });
         } catch (Exception e){
-            TurbolinksLog.d("Exception within visitProposedToLocationWithAction: " + e.getMessage());
+            TurbolinksLog.d("Exception within visitProposedToLocationWithAction: " + e.getMessage(),
+		            TurbolinksSession.this.debugCallback);
         }
     }
 
@@ -439,7 +482,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitStarted(String visitIdentifier, boolean visitHasCachedSnapshot) {
-        TurbolinksLog.d("visitStarted called");
+        TurbolinksLog.d("visitStarted called", TurbolinksSession.this.debugCallback);
 
         currentVisitIdentifier = visitIdentifier;
 
@@ -460,7 +503,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitRequestCompleted(String visitIdentifier) {
-        TurbolinksLog.d("visitRequestCompleted called");
+        TurbolinksLog.d("visitRequestCompleted called", TurbolinksSession.this.debugCallback);
 
         if (TextUtils.equals(visitIdentifier, currentVisitIdentifier)) {
             runJavascript("webView.loadResponseForVisitWithIdentifier", visitIdentifier);
@@ -479,7 +522,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitRequestFailedWithStatusCode(final String visitIdentifier, final int statusCode) {
-        TurbolinksLog.d("visitRequestFailedWithStatusCode called. Status code passed from parent method: " + statusCode);
+        TurbolinksLog.d("visitRequestFailedWithStatusCode called. Status code passed from parent method: " + statusCode,
+		        TurbolinksSession.this.debugCallback);
         hideProgressView(visitIdentifier);
 
         if (TextUtils.equals(visitIdentifier, currentVisitIdentifier)) {
@@ -504,7 +548,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitRendered(String visitIdentifier) {
-        TurbolinksLog.d("visitRendered called, hiding progress view for identifier: " + visitIdentifier);
+        TurbolinksLog.d("visitRendered called, hiding progress view for identifier: " + visitIdentifier,
+		        TurbolinksSession.this.debugCallback);
         hideProgressView(visitIdentifier);
     }
 
@@ -522,7 +567,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitCompleted(String visitIdentifier, String restorationIdentifier) {
-        TurbolinksLog.d("visitCompleted called");
+        TurbolinksLog.d("visitCompleted called", TurbolinksSession.this.debugCallback);
 
         addRestorationIdentifierToMap(restorationIdentifier);
 
@@ -547,7 +592,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void pageInvalidated() {
-        TurbolinksLog.d("pageInvalidated called");
+        TurbolinksLog.d("pageInvalidated called", TurbolinksSession.this.debugCallback);
 
         resetToColdBoot();
 
@@ -587,7 +632,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                  * turbolinksIsReady ensures progress view isn't hidden too soon by the non cold boot.
                  */
                 if (turbolinksIsReady && TextUtils.equals(visitIdentifier, currentVisitIdentifier)) {
-                    TurbolinksLog.d("Hiding progress view for visitIdentifier: " + visitIdentifier + ", currentVisitIdentifier: " + currentVisitIdentifier);
+                    TurbolinksLog.d("Hiding progress view for visitIdentifier: " + visitIdentifier + ", currentVisitIdentifier: " + currentVisitIdentifier,
+		                    TurbolinksSession.this.debugCallback);
                     turbolinksView.hideProgress();
                 } else {
                     stopRefreshing();
@@ -609,7 +655,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void setTurbolinksIsReady(boolean turbolinksIsReady) {
-	    TurbolinksLog.d("setTurbolinksIsReady: " + turbolinksIsReady);
+	    TurbolinksLog.d("setTurbolinksIsReady: " + turbolinksIsReady,
+			    TurbolinksSession.this.debugCallback);
 	    this.turbolinksIsReady = turbolinksIsReady;
 	    if (turbolinksIsReady) {
 		    this.turbolinksAdapter.onPageSupportsTurbolinks(true);
@@ -618,14 +665,16 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 		    TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
 			    @Override
 			    public void run() {
-				    TurbolinksLog.d("TurbolinksSession is ready");
+				    TurbolinksLog.d("TurbolinksSession is ready",
+						    TurbolinksSession.this.debugCallback);
 				    visitCurrentLocationWithTurbolinks();
 			    }
 		    });
 		
 		    this.coldBootInProgress = false;
 	    } else {
-		    TurbolinksLog.d("TurbolinksSession is not ready. Resetting and throw error.");
+		    TurbolinksLog.d("TurbolinksSession is not ready. Resetting and throw error.",
+				    TurbolinksSession.this.debugCallback);
 		    resetToColdBoot();
 		    visitRequestFailedWithStatusCode(currentVisitIdentifier, 500);
 	    }
@@ -641,12 +690,14 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void turbolinksDoesNotExist() {
-        TurbolinksLog.d("turbolinksDoesNotExist on this page, going to cold boot");
+        TurbolinksLog.d("turbolinksDoesNotExist on this page, going to cold boot",
+		        TurbolinksSession.this.debugCallback);
         turbolinksAdapter.onPageSupportsTurbolinks(false);
         TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
             @Override
             public void run() {
-                TurbolinksLog.d("Error instantiating turbolinks_bridge.js - resetting to cold boot.");
+                TurbolinksLog.d("Error instantiating turbolinks_bridge.js - resetting to cold boot.",
+		                TurbolinksSession.this.debugCallback);
                 resetToColdBoot();
                 turbolinksView.hideProgress();
             }
@@ -659,7 +710,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     //region  Public
     // -----------------------------------------------------------------------
 	
-	private void clearInstance(){
+	public void clearInstance(){
         this.webView.clearFormData();
         this.webView = null;
 		this.turbolinksAdapter = null;
@@ -767,7 +818,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
             javascriptInterfaces.put(name, object);
             webView.addJavascriptInterface(object, name);
 
-            TurbolinksLog.d("Adding JavascriptInterface: " + name + " for " + object.getClass().toString());
+            TurbolinksLog.d("Adding JavascriptInterface: " + name + " for " + object.getClass().toString(),
+		            TurbolinksSession.this.debugCallback);
         }
     }
 
@@ -855,7 +907,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      * @param action   Whether to treat the request as an advance (navigating forward) or a replace (back).
      */
     public void visitLocationWithAction(String location, String action) {
-        TurbolinksLog.d("call to visitLocationWithAction: loc = " + location + ", action = " + action);
+        TurbolinksLog.d("call to visitLocationWithAction: loc = " + location + ", action = " + action,
+		        TurbolinksSession.this.debugCallback);
         this.location = location;
         runJavascript("webView.visitLocationWithActionAndRestorationIdentifier",
                 TurbolinksHelper.encodeUrl(location), action, getRestorationIdentifierFromMap());
@@ -867,7 +920,23 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     
     //region  Private
     // ---------------------------------------------------
-    
+	
+	/**
+	 * If any temp logs stored in the SB have yet to be sent, this will send them out.
+	 */
+	private void runTempLogsCheck(){
+		if(TurbolinksSession.tempSBHolder != null){
+			if(TurbolinksSession.tempSBHolder.length() > 0) {
+				if (TurbolinksLog.getDebugLoggingEnabled()) {
+					String str = "All inits complete. Stored Logs fired off during static initialization:\n"
+							+ TurbolinksSession.tempSBHolder.toString();
+					TurbolinksLog.d(str, TurbolinksSession.this.debugCallback);
+					TurbolinksSession.tempSBHolder = null;
+				}
+			}
+		}
+	}
+	
     /**
      * Simple init for the custom headers map
      */
@@ -913,7 +982,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      * {@link #setTurbolinksIsReady(boolean)}</p>
      */
     private void visitCurrentLocationWithTurbolinks(String forcedAction) {
-        TurbolinksLog.d("Visiting current stored location: " + location);
+        TurbolinksLog.d("Visiting current stored location: " + location,
+		        TurbolinksSession.this.debugCallback);
         visitLocationWithAction(location, forcedAction);
     }
 
@@ -985,15 +1055,16 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     
         @Override
         public void onPageFinished(WebView view, final String location) {
-            TurbolinksLog.d("onPageFinished, loc == " + location);
+            TurbolinksLog.d("onPageFinished, loc == " + location,
+		            TurbolinksSession.this.debugCallback);
             String jsCall = "window.webView == null";
             webView.evaluateJavascript(jsCall, new ValueCallback<String>() {
                 @Override
                 public void onReceiveValue(String s) {
                     if (Boolean.parseBoolean(s) && !bridgeInjectionInProgress) {
                         bridgeInjectionInProgress = true;
-                        TurbolinksHelper.injectTurbolinksBridge(TurbolinksSession.this, applicationContext, webView);
-                        TurbolinksLog.d("Bridge injected");
+                        TurbolinksHelper.injectTurbolinksBridge(TurbolinksSession.this, applicationContext, webView, debugCallback);
+                        TurbolinksLog.d("Bridge injected", TurbolinksSession.this.debugCallback);
                     
                         turbolinksAdapter.onPageFinished();
                     } else {
@@ -1040,7 +1111,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
                     TurbolinksSession.this.turbolinksAdapter.visitCompletedByWebview(location);
                     return false;
                 } catch (Exception e){
-                    TurbolinksLog.d("Exception in shouldOverrideUrlLoading: " + e.getMessage());
+                    TurbolinksLog.d("Exception in shouldOverrideUrlLoading: " + e.getMessage(),
+		                    TurbolinksSession.this.debugCallback);
                 }
                 return false;
             }
@@ -1053,7 +1125,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
             long currentOverrideTime = new Date().getTime();
             if ((currentOverrideTime - previousOverrideTime) > 500) {
                 previousOverrideTime = currentOverrideTime;
-                TurbolinksLog.d("Overriding load: " + location);
+                TurbolinksLog.d("Overriding load: " + location, TurbolinksSession.this.debugCallback);
                 visitProposedToLocationWithAction(location, ACTION_ADVANCE);
             }
         
@@ -1066,8 +1138,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
 		    resetToColdBoot();
 		
 		    turbolinksAdapter.onReceivedError(errorCode);
-		    TurbolinksLog.d("onReceivedError. Code: " + errorCode + ", Description: " + description + ", Failing URL: " + failingUrl);
-		    TurbolinksLog.d("Webview error is being thrown from matches initially set webview? " + (view == TurbolinksSession.this.webView));
+		    TurbolinksLog.d("onReceivedError. Code: " + errorCode + ", Description: " + description + ", Failing URL: " + failingUrl,
+				    TurbolinksSession.this.debugCallback);
+		    TurbolinksLog.d("Webview error is being thrown from matches initially set webview? " + (view == TurbolinksSession.this.webView),
+				    TurbolinksSession.this.debugCallback);
 	    }
     
         @Override
@@ -1078,7 +1152,7 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
             if (request.isForMainFrame()) {
                 resetToColdBoot();
                 turbolinksAdapter.onReceivedError(errorResponse.getStatusCode());
-                TurbolinksLog.d("onReceivedHttpError: " + errorResponse.getStatusCode());
+                TurbolinksLog.d("onReceivedHttpError: " + errorResponse.getStatusCode(), TurbolinksSession.this.debugCallback);
             }
         }
     }
@@ -1099,10 +1173,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      */
     private void setWebviewScrollListener(){
         if(this.webView == null){
-            TurbolinksLog.d("Attempted to setWebviewScrollListener, but webview null");
+            TurbolinksLog.d("Attempted to setWebviewScrollListener, but webview null", TurbolinksSession.this.debugCallback);
             return;
         }
-        TurbolinksLog.d("Setting setWebviewScrollListener");
+        TurbolinksLog.d("Setting setWebviewScrollListener", TurbolinksSession.this.debugCallback);
         this.webView.getViewTreeObserver().addOnScrollChangedListener(
                 new ViewTreeObserver.OnScrollChangedListener() {
                     @Override

@@ -84,12 +84,13 @@ class TurbolinksHelper {
      * @param context           Any Android context.
      * @param webView           The shared webView.
      */
-    static void injectTurbolinksBridge(final TurbolinksSession turbolinksSession, Context context, WebView webView) {
+    static void injectTurbolinksBridge(final TurbolinksSession turbolinksSession, Context context,
+                                       WebView webView, TurbolinksDebugCallback debugCallback) {
         try {
             String jsCall = String.format(scriptInjectionFormat, TurbolinksHelper.getContentFromAssetFile(context, "js/turbolinks_bridge.js"));
             runJavascriptRaw(context, webView, jsCall);
         } catch (IOException e) {
-            TurbolinksLog.e("Error injecting script file into webview: " + e.toString());
+            TurbolinksLog.e("Error injecting script file into webview: " + e.toString(), debugCallback);
         }
     }
 

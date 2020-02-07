@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 import com.basecamp.turbolinks.TurbolinksAdapter;
+import com.basecamp.turbolinks.TurbolinksDebugCallback;
 import com.basecamp.turbolinks.TurbolinksSession;
 import com.basecamp.turbolinks.TurbolinksView;
 
@@ -33,20 +34,30 @@ public class MainActivity extends AppCompatActivity implements TurbolinksAdapter
 
         // Find the custom TurbolinksView object in your layout
         turbolinksView = (TurbolinksView) findViewById(R.id.turbolinks_view);
-
+	
+	    Log.d("Demo", "about to enable logging");
         // For this demo app, we force debug logging on. You will only want to do
         // this for debug builds of your app (it is off by default)
-        TurbolinksSession.getDefault(this).setDebugLoggingEnabled(true);
-
-        // For this example we set a default location, unless one is passed in through an intent
+        TurbolinksSession.setDebugLoggingEnabled(true);
+	    Log.d("Demo", "Enabled logging");
+			    // For this example we set a default location, unless one is passed in through an intent
         location = getIntent().getStringExtra(INTENT_URL) != null ? getIntent().getStringExtra(INTENT_URL) : BASE_URL;
-
+	
+	    TurbolinksDebugCallback debugCallback = new TurbolinksDebugCallback() {
+		    @Override
+		    public void logEvent(int logLevel, String tag, String msg) {
+				Log.d("Demo", "Received callback from debug callback. Log level = "
+						+ logLevel + ", Tag == " + tag + ", Msg == " + msg);
+		    }
+	    };
         // Execute the visit
         TurbolinksSession.getDefault(this)
             .activity(this)
             .adapter(this)
             .view(turbolinksView)
+		    .debugCallback(debugCallback)
             .visit(location);
+	    Log.d("Demo", "Finished all initialization");
     }
 
     @Override

@@ -33,6 +33,7 @@ public class TurbolinksView extends FrameLayout  {
     private View progressView = null;
     private ImageView screenshotView = null;
     private int screenshotOrientation = 0;
+    private TurbolinksDebugCallback debugCallback;
     
     // ---------------------------------------------------
     // Constructors
@@ -141,7 +142,7 @@ public class TurbolinksView extends FrameLayout  {
      *                          is 500 ms.
      */
     void showProgress(final View progressView, final View progressIndicator, int delay) {
-        TurbolinksLog.d("showProgress called");
+        TurbolinksLog.d("showProgress called", TurbolinksView.this.debugCallback);
         
         // Don't show the progress view if a screenshot is available
         if (screenshotView != null && screenshotOrientation == getOrientation()) return;
@@ -173,8 +174,13 @@ public class TurbolinksView extends FrameLayout  {
         try {
             this.refreshLayout.setRefreshing(false);
         } catch (Exception e){
-            TurbolinksLog.d("Error setting refreshLayout.setRefreshing(false) - " + e.getMessage());
+            TurbolinksLog.d("Error setting refreshLayout.setRefreshing(false) - " + e.getMessage(),
+		            TurbolinksView.this.debugCallback);
         }
+    }
+    
+    protected void setDebugCallback(TurbolinksDebugCallback debugCallback){
+    	this.debugCallback = debugCallback;
     }
     
     /**
@@ -218,7 +224,7 @@ public class TurbolinksView extends FrameLayout  {
             webView.setBackgroundColor(((ColorDrawable) getBackground()).getColor());
         }
 	
-	    TurbolinksLog.d("Adding the webview to the refreshLayout");
+	    TurbolinksLog.d("Adding the webview to the refreshLayout", TurbolinksView.this.debugCallback);
         refreshLayout.addView(webView);
         return true;
     }
@@ -239,7 +245,7 @@ public class TurbolinksView extends FrameLayout  {
         if (progressView == null) return;
         
         removeView(progressView);
-        TurbolinksLog.d("Progress view removed");
+        TurbolinksLog.d("Progress view removed", TurbolinksView.this.debugCallback);
     }
     
     /**
@@ -250,7 +256,7 @@ public class TurbolinksView extends FrameLayout  {
         
         removeView(screenshotView);
         screenshotView = null;
-        TurbolinksLog.d("Screenshot removed");
+        TurbolinksLog.d("Screenshot removed", TurbolinksView.this.debugCallback);
     }
     
     /**
@@ -271,7 +277,7 @@ public class TurbolinksView extends FrameLayout  {
         
         addView(screenshotView);
         
-        TurbolinksLog.d("Screenshot taken");
+        TurbolinksLog.d("Screenshot taken", TurbolinksView.this.debugCallback);
     }
     
     /**
@@ -312,7 +318,7 @@ public class TurbolinksView extends FrameLayout  {
         float total = runtime.totalMemory();
         float remaining = free / total;
         
-        TurbolinksLog.d("Memory remaining percentage: " + remaining);
+        TurbolinksLog.d("Memory remaining percentage: " + remaining, TurbolinksView.this.debugCallback);
         
         return remaining > .10;
     }
