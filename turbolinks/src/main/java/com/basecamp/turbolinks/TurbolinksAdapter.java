@@ -10,6 +10,13 @@ package com.basecamp.turbolinks;
 public interface TurbolinksAdapter {
     
     /**
+     * Called whenever the page both does not support turbolinks and the bridge injection failed.
+     * This specifically runs after the `onPageSupportsTurbolinks(false)` runs and runs on the Main
+     * Thread
+     */
+    void bridgeInjectionFailed();
+    
+    /**
      * Called whenever the page is reloaded via a pull to refresh
      */
     void reloadPageViaRefreshTriggered();

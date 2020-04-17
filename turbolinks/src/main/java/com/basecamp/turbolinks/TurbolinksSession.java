@@ -23,6 +23,7 @@ import java.util.Date;
 import java.util.HashMap;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 /**
@@ -482,13 +483,11 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitStarted(String visitIdentifier, boolean visitHasCachedSnapshot) {
-        TurbolinksLog.d("visitStarted called", TurbolinksSession.this.debugCallback);
-
-        currentVisitIdentifier = visitIdentifier;
-
-        runJavascript("webView.changeHistoryForVisitWithIdentifier", visitIdentifier);
-        runJavascript("webView.issueRequestForVisitWithIdentifier", visitIdentifier);
-        runJavascript("webView.loadCachedSnapshotForVisitWithIdentifier", visitIdentifier);
+        TurbolinksLog.d(("visitStarted called. Identifier == " + visitIdentifier), TurbolinksSession.this.debugCallback);
+        this.currentVisitIdentifier = visitIdentifier;
+        runJavascript("webView.changeHistoryForVisitWithIdentifier", this.debugCallback, visitIdentifier);
+        runJavascript("webView.issueRequestForVisitWithIdentifier", this.debugCallback, visitIdentifier);
+        runJavascript("webView.loadCachedSnapshotForVisitWithIdentifier", this.debugCallback, visitIdentifier);
     }
 
     /**
@@ -503,10 +502,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     @SuppressWarnings("unused")
     @android.webkit.JavascriptInterface
     public void visitRequestCompleted(String visitIdentifier) {
-        TurbolinksLog.d("visitRequestCompleted called", TurbolinksSession.this.debugCallback);
+        TurbolinksLog.d(("visitRequestCompleted called. Identifier == " + visitIdentifier), TurbolinksSession.this.debugCallback);
 
         if (TextUtils.equals(visitIdentifier, currentVisitIdentifier)) {
-            runJavascript("webView.loadResponseForVisitWithIdentifier", visitIdentifier);
+            runJavascript("webView.loadResponseForVisitWithIdentifier", this.debugCallback, visitIdentifier);
         }
     }
 
@@ -692,16 +691,17 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     public void turbolinksDoesNotExist() {
         TurbolinksLog.d("turbolinksDoesNotExist on this page, going to cold boot",
 		        TurbolinksSession.this.debugCallback);
-        turbolinksAdapter.onPageSupportsTurbolinks(false);
-        TurbolinksHelper.runOnMainThread(applicationContext, new Runnable() {
+        TurbolinksHelper.runOnMainThread(this.applicationContext, new Runnable() {
             @Override
             public void run() {
                 TurbolinksLog.d("Error instantiating turbolinks_bridge.js - resetting to cold boot.",
 		                TurbolinksSession.this.debugCallback);
                 resetToColdBoot();
-                turbolinksView.hideProgress();
+                TurbolinksSession.this.turbolinksView.hideProgress();
+	            TurbolinksSession.this.turbolinksAdapter.bridgeInjectionFailed();
             }
         });
+	    this.turbolinksAdapter.onPageSupportsTurbolinks(false);
     }
 
     //endregion
@@ -858,8 +858,10 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
      * @param functionName The name of the function, without any parenthesis or params
      * @param params       A comma delimited list of params. Params will be automatically JSONified.
      */
-    public void runJavascript(final String functionName, final Object... params) {
-        TurbolinksHelper.runJavascript(applicationContext, webView, functionName, params);
+    public void runJavascript(final String functionName, final TurbolinksDebugCallback debugCallback,
+                              final Object... params) {
+        TurbolinksHelper.runJavascript(this.applicationContext, this.webView,
+		        functionName, debugCallback, params);
     }
 
     /**
@@ -910,8 +912,8 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
         TurbolinksLog.d("call to visitLocationWithAction: loc = " + location + ", action = " + action,
 		        TurbolinksSession.this.debugCallback);
         this.location = location;
-        runJavascript("webView.visitLocationWithActionAndRestorationIdentifier",
-                TurbolinksHelper.encodeUrl(location), action, getRestorationIdentifierFromMap());
+        runJavascript("webView.visitLocationWithActionAndRestorationIdentifier", this.debugCallback,
+		        TurbolinksHelper.encodeUrl(location), action, getRestorationIdentifierFromMap());
     }
 
     //endregion
@@ -1061,21 +1063,24 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
             webView.evaluateJavascript(jsCall, new ValueCallback<String>() {
                 @Override
                 public void onReceiveValue(String s) {
-                    if (Boolean.parseBoolean(s) && !bridgeInjectionInProgress) {
+	                TurbolinksLog.d(("webView.evaluateJavascript from " + jsCall + ", response == "
+			                + s), TurbolinksSession.this.debugCallback);
+	                TurbolinksLog.d(("Attempting to inject bridge into Turbolinks Session. Is bridgeInjectionInProgress? "
+			                + bridgeInjectionInProgress), TurbolinksSession.this.debugCallback);
+                    if (parseBoolSafe(s) && !bridgeInjectionInProgress) {
                         bridgeInjectionInProgress = true;
-                        TurbolinksHelper.injectTurbolinksBridge(TurbolinksSession.this, applicationContext, webView, debugCallback);
-                        TurbolinksLog.d("Bridge injected", TurbolinksSession.this.debugCallback);
-                    
-                        turbolinksAdapter.onPageFinished();
+                        TurbolinksHelper.injectTurbolinksBridge(TurbolinksSession.this,
+		                        applicationContext, webView, debugCallback);
+                        TurbolinksLog.d("Bridge inject attempted", TurbolinksSession.this.debugCallback);
+	
+	                    TurbolinksSession.this.turbolinksAdapter.onPageFinished();
                     } else {
-                        turbolinksAdapter.onPageFinished();
+	                    TurbolinksSession.this.turbolinksAdapter.onPageFinished();
                     }
                 }
             });
             try {
-//                view.loadUrl(JAVASCRIPT_GET_WEB_PAGE_HEIGHT);
-//                TurbolinksHelper.runJavascript(applicationContext, webView, functionName, params);
-                webView.evaluateJavascript(JAVASCRIPT_GET_WEB_PAGE_HEIGHT, new ValueCallback<String>() {
+	            TurbolinksSession.this.webView.evaluateJavascript(JAVASCRIPT_GET_WEB_PAGE_HEIGHT, new ValueCallback<String>() {
                     @Override
                     public void onReceiveValue(String value) {
                         try {
@@ -1199,4 +1204,16 @@ public class TurbolinksSession implements TurbolinksScrollUpCallback {
     }
     
     //endregion
+	
+	//region Misc Utils
+	
+	private static boolean parseBoolSafe(@Nullable String bool){
+		try {
+			return Boolean.parseBoolean(bool);
+		} catch (Exception e){
+			return false;
+		}
+	}
+	
+	//endregion
 }

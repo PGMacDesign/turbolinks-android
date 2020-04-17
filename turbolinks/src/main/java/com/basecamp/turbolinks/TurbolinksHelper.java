@@ -88,7 +88,7 @@ class TurbolinksHelper {
                                        WebView webView, TurbolinksDebugCallback debugCallback) {
         try {
             String jsCall = String.format(scriptInjectionFormat, TurbolinksHelper.getContentFromAssetFile(context, "js/turbolinks_bridge.js"));
-            runJavascriptRaw(context, webView, jsCall);
+            runJavascriptRaw(context, webView, jsCall, debugCallback);
         } catch (IOException e) {
             TurbolinksLog.e("Error injecting script file into webview: " + e.toString(), debugCallback);
         }
@@ -103,7 +103,8 @@ class TurbolinksHelper {
      * @param functionName The Javascript function name only (no parenthesis or parameters).
      * @param params       A comma delimited list of parameter values.
      */
-    static void runJavascript(Context context, final WebView webView, String functionName, Object... params) {
+    static void runJavascript(Context context, final WebView webView, String functionName,
+                              final TurbolinksDebugCallback debugCallback, Object... params) {
         final String fullJs;
 
         if (params != null) {
@@ -120,6 +121,9 @@ class TurbolinksHelper {
         runOnMainThread(context, new Runnable() {
             @Override
             public void run() {
+            	if(debugCallback != null) {
+		            TurbolinksLog.d("Attempting to runJavascript: " + fullJs, debugCallback);
+	            }
                 webView.loadUrl(fullJs);
             }
         });
@@ -134,9 +138,25 @@ class TurbolinksHelper {
      * @param javascript The raw Javascript to be executed, fully escaped/encoded in advance.
      */
     static void runJavascriptRaw(Context context, final WebView webView, final String javascript) {
+	    runJavascriptRaw(context, webView, javascript, null);
+    }
+
+    /**
+     * <p>Runs raw Javascript that's passed in. You are responsible for encoding/escaping the
+     * function call.</p>
+     *
+     * @param context    An activity context.
+     * @param webView    The shared webView.
+     * @param javascript The raw Javascript to be executed, fully escaped/encoded in advance.
+     * @param debugCallback The callback to send error messages on
+     */
+    static void runJavascriptRaw(Context context, final WebView webView, final String javascript, final TurbolinksDebugCallback debugCallback) {
         runOnMainThread(context, new Runnable() {
             @Override
             public void run() {
+            	if(debugCallback != null){
+		            TurbolinksLog.d("Running Javascript: " + javascript, debugCallback);
+	            }
                 webView.loadUrl("javascript:" + javascript);
             }
         });
@@ -149,6 +169,7 @@ class TurbolinksHelper {
      * @param runnable A runnable to execute on the main thread.
      */
     static void runOnMainThread(Context context, Runnable runnable) {
+	    // TODO: 4/17/20 May need callback method for invalid or no longer valid context
         Handler handler = new Handler(context.getMainLooper());
         handler.post(runnable);
     }
