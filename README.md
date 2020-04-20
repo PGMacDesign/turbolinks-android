@@ -38,7 +38,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.pgmacdesign:turbolinks-android:1.2.0'
+    implementation 'com.github.pgmacdesign:turbolinks-android:1.3.0'
 }
 ```
 
